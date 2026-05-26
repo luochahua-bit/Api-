@@ -27,34 +27,21 @@ services:
         value: "60000"
       - key: MAX_LOG_ENTRIES
         value: "2000"
-      # OpenRouter (25+ free models)
       - key: PROVIDERS
         value: "openrouter-free|https://openrouter.ai/api/v1|YOUR_KEY|10|true"
-      # Groq (fast inference)
       - key: PROVIDERS_2
         value: "groq|https://api.groq.com/openai/v1|YOUR_KEY|8|true"
-      # Cerebras (fast inference)
       - key: PROVIDERS_3
         value: "cerebras|https://api.cerebras.ai/v1|YOUR_KEY|7|true"
-      # SambaNova
       - key: PROVIDERS_4
         value: "sambanova|https://api.sambanova.ai/v1|YOUR_KEY|6|true"
-      # Google AI Studio
       - key: PROVIDERS_5
         value: "google-ai|https://generativelanguage.googleapis.com/v1beta/openai|YOUR_KEY|5|true"
-      # Mistral
       - key: PROVIDERS_6
         value: "mistral|https://api.mistral.ai/v1|YOUR_KEY|5|true"
-      # GitHub Models
       - key: PROVIDERS_7
         value: "github-models|https://models.inference.ai.azure.com|YOUR_TOKEN|4|true"
-      # NVIDIA NIM
       - key: PROVIDERS_8
         value: "nvidia-nim|https://integrate.api.nvidia.com/v1|YOUR_KEY|4|true"
-      # Cohere
       - key: PROVIDERS_9
         value: "cohere|https://api.cohere.com/compatibility/v1|YOUR_KEY|3|true"
-    disk:
-      name: relay-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
