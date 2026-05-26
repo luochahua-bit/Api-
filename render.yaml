@@ -27,3 +27,25 @@ services:
         value: "60000"
       - key: MAX_LOG_ENTRIES
         value: "2000"
+      - key: PROVIDERS
+        sync: false
+      - key: PROVIDERS_2
+        sync: false
+      - key: PROVIDERS_3
+        sync: false
+      - key: PROVIDERS_4
+        sync: false
+      - key: PROVIDERS_5
+        sync: false
+      - key: PROVIDERS_6
+        sync: false
+      - key: PROVIDERS_7
+        sync: false
+      - key: PROVIDERS_8
+        sync: false
+      - key: PROVIDERS_9
+        sync: false
+      - key: PROVIDERS_10
+        sync: false
+      - key: PROVIDERS_11
+        sync: false
