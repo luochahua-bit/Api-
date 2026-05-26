@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM API 中转站 - 控制面板</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f1a;
+      --bg-secondary: #111827;
+      --bg-card: #1a2235;
+      --bg-hover: #243049;
+      --border: #2a3a55;
+      --text-primary: #e8edf5;
+      --text-secondary: #8b9ab8;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --purple: #8b5cf6;
+      --cyan: #06b6d4;
+      --pink: #ec4899;
+      --glass: rgba(26, 34, 53, 0.7);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(6,182,212,0.05) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+    .header {
+      background: var(--glass);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(20px);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .logo {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--purple), var(--cyan));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: white;
+      box-shadow: 0 0 20px rgba(59,130,246,0.3);
+    }
+    .header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .header h1 span { background: linear-gradient(135deg, var(--accent), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .status-badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 14px; border-radius: 20px;
+      background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.2);
+      color: var(--success); font-size: 12px; font-weight: 600;
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--success); animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(16,185,129,0.4); } 50% { opacity:0.8; box-shadow:0 0 0 6px rgba(16,185,129,0); } }
+    .main { padding: 20px 32px; max-width: 1440px; margin: 0 auto; position: relative; z-index: 1; }
+    /* Hero Banner */
+    .hero {
+      background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.1) 40%, rgba(6,182,212,0.08) 100%);
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 20px; padding: 28px 32px; margin-bottom: 20px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(circle at 30% 50%, rgba(59,130,246,0.06) 0%, transparent 50%);
+      animation: heroGlow 10s ease-in-out infinite;
+    }
+    @keyframes heroGlow { 0%,100% { transform: translate(0,0); } 50% { transform: translate(5%,3%); } }
+    .hero-content { position: relative; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
+    .hero-text h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .hero-text p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+    .hero-text .badges { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .hero-text .badge {
+      padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+      background: rgba(59,130,246,0.12); color: var(--accent); border: 1px solid rgba(59,130,246,0.15);
+    }
+    .hero-text .badge.green { background: rgba(16,185,129,0.12); color: var(--success); border-color: rgba(16,185,129,0.15); }
+    .hero-text .badge.purple { background: rgba(139,92,246,0.12); color: var(--purple); border-color: rgba(139,92,246,0.15); }
+    .hero-stats { display: flex; gap: 24px; }
+    .hero-stat { text-align: center; padding: 12px 20px; background: rgba(0,0,0,0.2); border-radius: 14px; min-width: 90px; }
+    .hero-stat-val { font-size: 26px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 20px; transition: all 0.25s; position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      opacity: 0; transition: opacity 0.25s;
+    }
+    .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(59,130,246,0.1); }
+    .stat-card:hover::before { opacity: 1; }
+    .stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 10px; }
+    .stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500; }
+    .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+    .stat-value.gradient { background: linear-gradient(135deg, var(--text-primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 3px; padding: 4px; background: var(--bg-secondary);
+      border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 9px 18px; border-radius: 9px; border: none;
+      background: transparent; color: var(--text-secondary);
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .tab.active { background: var(--accent); color: white; box-shadow: 0 2px 10px rgba(59,130,246,0.3); }
+    .tab:hover:not(.active) { color: var(--text-primary); background: var(--bg-hover); }
+    /* Section */
+    .section {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; margin-bottom: 16px; overflow: hidden;
+    }
+    .section-header {
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .section-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .section-title .count { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 8px; border-radius: 10px; }
+    .section-body { padding: 16px 20px; }
+    /* Provider Cards */
+    .providers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+    .provider-card {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+      transition: all 0.2s; cursor: default;
+    }
+    .provider-card:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .provider-icon {
+      width: 42px; height: 42px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; flex-shrink: 0;
+    }
+    .provider-info { flex: 1; min-width: 0; }
+    .provider-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .provider-url { font-size: 10px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .provider-meta { display: flex; gap: 6px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
+    .tag { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+    .tag-weight { background: var(--bg-primary); color: var(--text-secondary); }
+    .tag-latency { background: rgba(6,182,212,0.1); color: var(--cyan); }
+    .tag-failures { background: rgba(239,68,68,0.1); color: var(--error); }
+    .provider-status { padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .provider-status.active { background: rgba(16,185,129,0.12); color: var(--success); }
+    .provider-status.blocked { background: rgba(239,68,68,0.12); color: var(--error); }
+    .provider-status.unhealthy { background: rgba(245,158,11,0.12); color: var(--warning); }
+    /* Model Cards */
+    .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+    .model-card {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px;
+      font-size: 12px; transition: all 0.15s;
+    }
+    .model-card:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .model-free { background: rgba(16,185,129,0.15); color: var(--success); font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 700; }
+    .model-paid { background: rgba(245,158,11,0.15); color: var(--warning); font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 700; }
+    .model-provider-tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(139,92,246,0.12); color: var(--purple); margin-left: auto; }
+    .model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .search-bar {
+      display: flex; gap: 8px; margin-bottom: 12px;
+    }
+    .search-bar input {
+      flex: 1; background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-primary); padding: 8px 12px;
+      font-size: 12px; outline: none;
+    }
+    .search-bar input:focus { border-color: var(--accent); }
+    /* Logs Table */
+    .logs-table { width: 100%; border-collapse: collapse; }
+    .logs-table th {
+      text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700;
+      color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+    }
+    .logs-table td { padding: 9px 12px; font-size: 12px; border-bottom: 1px solid rgba(42,58,85,0.4); }
+    .logs-table tr:hover td { background: var(--bg-hover); }
+    .log-status { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+    .log-status.success { background: rgba(16,185,129,0.12); color: var(--success); }
+    .log-status.error { background: rgba(239,68,68,0.12); color: var(--error); }
+    .log-status.streaming { background: rgba(139,92,246,0.12); color: var(--purple); }
+    .log-provider { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; background: rgba(59,130,246,0.12); color: var(--accent); }
+    /* Playground */
+    .playground { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .playground-input, .playground-output {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+    }
+    .playground textarea {
+      width: 100%; min-height: 100px; background: var(--bg-primary);
+      border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);
+      padding: 10px; font-family: 'JetBrains Mono','Fira Code',monospace;
+      font-size: 12px; resize: vertical; outline: none;
+    }
+    .playground textarea:focus { border-color: var(--accent); }
+    .playground select, .playground input[type="text"] {
+      width: 100%; background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-primary); padding: 8px 10px;
+      font-size: 12px; outline: none; margin-bottom: 10px;
+    }
+    .playground select:focus, .playground input:focus { border-color: var(--accent); }
+    .playground label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 600; }
+    .btn {
+      padding: 8px 18px; border-radius: 8px; border: none;
+      font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--purple)); color: white; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 15px rgba(59,130,246,0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); }
+    .btn-danger { background: rgba(239,68,68,0.12); color: var(--error); }
+    .btn-danger:hover { background: rgba(239,68,68,0.2); }
+    .btn-success { background: rgba(16,185,129,0.12); color: var(--success); }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+    .output-area {
+      background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px; min-height: 100px; font-family: 'JetBrains Mono','Fira Code',monospace;
+      font-size: 12px; white-space: pre-wrap; word-break: break-all;
+      max-height: 350px; overflow-y: auto;
+    }
+    /* Guide */
+    .guide-card {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+    }
+    .guide-card h4 { font-size: 13px; margin-bottom: 6px; color: var(--accent); }
+    .guide-card p { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+    .guide-card a { color: var(--accent); text-decoration: none; }
+    .guide-card a:hover { text-decoration: underline; }
+    .guide-card code { background: var(--bg-primary); padding: 2px 5px; border-radius: 4px; font-size: 11px; }
+    /* Admin */
+    .admin-login {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; max-width: 380px; margin: 40px auto; text-align: center;
+    }
+    .admin-login h3 { margin-bottom: 12px; }
+    .admin-login input {
+      width: 100%; background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-primary); padding: 10px;
+      font-size: 13px; outline: none; margin-bottom: 10px; text-align: center;
+    }
+    .admin-login input:focus { border-color: var(--accent); }
+    .key-row {
+      display: flex; gap: 10px; align-items: center;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+    }
+    .filter-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input {
+      background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text-primary); padding: 5px 8px;
+      font-size: 11px; outline: none;
+    }
+    .filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
+    /* Modal */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center;
+      z-index: 1000; backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px; width: 90%; max-width: 480px; max-height: 80vh; overflow-y: auto;
+    }
+    .modal h3 { margin-bottom: 14px; font-size: 16px; }
+    .modal label { display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600; }
+    .modal input, .modal select {
+      width: 100%; background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-primary); padding: 8px 10px;
+      font-size: 12px; outline: none; margin-bottom: 10px;
+    }
+    .modal input:focus, .modal select:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      padding: 10px 18px; border-radius: 10px;
+      font-size: 12px; font-weight: 600; z-index: 1000;
+      animation: slideIn 0.3s ease; display: none;
+    }
+    .toast.show { display: block; }
+    .toast.success { background: var(--success); color: white; }
+    .toast.error { background: var(--error); color: white; }
+    .toast.info { background: var(--accent); color: white; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+    /* Responsive */
+    @media (max-width: 768px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .playground { grid-template-columns: 1fr; }
+      .main { padding: 12px; }
+      .header { padding: 10px 14px; }
+      .hero-content { flex-direction: column; }
+      .hero-stats { width: 100%; justify-content: space-around; }
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">AI</div>
+      <h1>LLM <span>API 中转站</span></h1>
+    </div>
+    <div class="header-right">
+      <div class="status-badge"><div class="status-dot"></div><span id="statusText">运行中</span></div>
+      <span style="color:var(--text-secondary);font-size:12px" id="uptimeText">--</span>
+      <button class="btn btn-secondary btn-sm" onclick="toggleAdmin()">管理</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="hero">
+      <div class="hero-content">
+        <div class="hero-text">
+          <h2>LLM API 中转站 v2.0</h2>
+          <p>OpenAI 兼容网关 · 多平台负载均衡 · 智能故障转移 · 流式响应</p>
+          <div class="badges">
+            <span class="badge green">9 大免费平台</span>
+            <span class="badge">40+ 免费模型</span>
+            <span class="badge purple">流式输出</span>
+            <span class="badge">OpenAI 兼容</span>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="hero-stat-val" id="heroModels">40+</div><div class="hero-stat-label">免费模型</div></div>
+          <div class="hero-stat"><div class="hero-stat-val" id="heroProviders">9</div><div class="hero-stat-label">免费平台</div></div>
+          <div class="hero-stat"><div class="hero-stat-val" id="heroUptime">--</div><div class="hero-stat-label">运行时长</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(59,130,246,0.12);color:var(--accent)">📊</div>
+        <div class="stat-label">总请求数</div>
+        <div class="stat-value gradient" id="statRequests">0</div>
+        <div class="stat-sub">自服务启动累计</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(139,92,246,0.12);color:var(--purple)">🔤</div>
+        <div class="stat-label">已处理 Token</div>
+        <div class="stat-value gradient" id="statTokens">0</div>
+        <div class="stat-sub">提示 + 补全</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(239,68,68,0.12);color:var(--error)">⚠️</div>
+        <div class="stat-label">错误率</div>
+        <div class="stat-value gradient" id="statErrors">0%</div>
+        <div class="stat-sub" id="errorCount">0 次错误</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(16,185,129,0.12);color:var(--success)">✅</div>
+        <div class="stat-label">活跃提供商</div>
+        <div class="stat-value gradient" id="statProviders">0</div>
+        <div class="stat-sub" id="providerSub">--</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('providers',this)">提供商</button>
+      <button class="tab" onclick="showTab('models',this)">模型</button>
+      <button class="tab" onclick="showTab('logs',this)">请求日志</button>
+      <button class="tab" onclick="showTab('playground',this)">测试台</button>
+      <button class="tab" onclick="showTab('admin',this)" id="tabAdminBtn">管理面板</button>
+      <button class="tab" onclick="showTab('guide',this)">配置指南</button>
+    </div>
+
+    <!-- Providers -->
+    <div class="section" id="tab-providers">
+      <div class="section-header"><div class="section-title">提供商状态 <span class="count" id="providerCount">0</span></div></div>
+      <div class="section-body"><div class="providers-grid" id="providersGrid"></div></div>
+    </div>
+
+    <!-- Models -->
+    <div class="section" id="tab-models" style="display:none">
+      <div class="section-header">
+        <div class="section-title">可用模型 <span class="count" id="modelCount">0</span></div>
+      </div>
+      <div class="section-body">
+        <div class="search-bar">
+          <input type="text" id="modelSearch" placeholder="搜索模型名称..." oninput="filterModels()">
+          <select id="modelFilter" onchange="filterModels()">
+            <option value="">全部类型</option>
+            <option value="free">免费模型</option>
+            <option value="paid">付费模型</option>
+          </select>
+        </div>
+        <div class="models-grid" id="modelsGrid"></div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="section" id="tab-logs" style="display:none">
+      <div class="section-header">
+        <div class="section-title">请求日志</div>
+        <div class="filter-bar">
+          <select id="logFilterModel" onchange="refreshStats()"><option value="">全部模型</option></select>
+          <select id="logFilterProvider" onchange="refreshStats()"><option value="">全部提供商</option></select>
+          <button class="btn btn-secondary btn-sm" onclick="refreshStats()">刷新</button>
+        </div>
+      </div>
+      <div class="section-body" style="padding:0">
+        <table class="logs-table">
+          <thead><tr><th>时间</th><th>请求 ID</th><th>模型</th><th>提供商</th><th>状态</th><th>Token</th><th>耗时</th></tr></thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Playground -->
+    <div class="section" id="tab-playground" style="display:none">
+      <div class="section-header"><div class="section-title">API 测试台</div></div>
+      <div class="section-body">
+        <div class="playground">
+          <div class="playground-input">
+            <label>模型</label>
+            <select id="pgModel">
+              <optgroup label="OpenRouter 免费">
+                <option value="deepseek/deepseek-v4-flash:free">DeepSeek V4 Flash</option>
+                <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 Llama 405B</option>
+                <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B</option>
+                <option value="openai/gpt-oss-120b:free">GPT-OSS 120B</option>
+                <option value="qwen/qwen3-coder:free">Qwen3 Coder</option>
+                <option value="google/gemma-4-31b-it:free">Google Gemma 4 31B</option>
+                <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B</option>
+                <option value="z-ai/glm-4.5-air:free">GLM 4.5 Air</option>
+              </optgroup>
+              <optgroup label="Groq 免费">
+                <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                <option value="llama-4-scout-17b-16e-instruct">Llama 4 Scout</option>
+                <option value="qwen/qwen3-32b">Qwen3 32B</option>
+              </optgroup>
+              <optgroup label="Cerebras 免费">
+                <option value="gpt-oss-120b">GPT-OSS 120B</option>
+              </optgroup>
+              <optgroup label="SambaNova 免费">
+                <option value="DeepSeek-V3-0324">DeepSeek V3</option>
+                <option value="DeepSeek-R1-Distill-Llama-70B">DeepSeek R1 Distill 70B</option>
+              </optgroup>
+              <optgroup label="Google AI 免费">
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemma-3-27b-it">Gemma 3 27B</option>
+              </optgroup>
+              <optgroup label="Mistral 免费">
+                <option value="mistral-small-latest">Mistral Small</option>
+                <option value="codestral-latest">Codestral</option>
+              </optgroup>
+              <optgroup label="GitHub Models 免费">
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="DeepSeek-R1">DeepSeek R1</option>
+              </optgroup>
+              <optgroup label="付费模型">
+                <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                <option value="deepseek-chat">DeepSeek Chat</option>
+                <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+              </optgroup>
+            </select>
+            <label>系统提示词（可选）</label>
+            <input type="text" id="pgSystem" placeholder="你是一个有帮助的助手。">
+            <label>消息</label>
+            <textarea id="pgMessage" placeholder="在此输入消息...">你好！你是谁？</textarea>
+            <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+              <button class="btn btn-primary" id="pgSend" onclick="sendPlayground()">发送</button>
+              <label style="margin:0;display:flex;align-items:center;gap:4px;font-size:11px">
+                <input type="checkbox" id="pgStream" checked> 流式输出
+              </label>
+            </div>
+          </div>
+          <div class="playground-output">
+            <label>响应</label>
+            <div class="output-area" id="pgOutput">响应将在此显示...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin -->
+    <div class="section" id="tab-admin" style="display:none">
+      <div class="section-header"><div class="section-title">管理面板</div></div>
+      <div class="section-body">
+        <div id="adminLogin">
+          <div class="admin-login">
+            <h3>管理员登录</h3>
+            <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px">输入管理员密码以管理提供商和 API 密钥。</p>
+            <input type="password" id="adminPassword" placeholder="管理员密码" onkeydown="if(event.key==='Enter')adminLogin()">
+            <button class="btn btn-primary" onclick="adminLogin()" style="width:100%">登录</button>
+          </div>
+        </div>
+        <div id="adminContent" style="display:none">
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminProviders')">提供商</button>
+            <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
+            <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出登录</button>
+          </div>
+          <div id="adminProviders">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <h4 style="font-size:13px">提供商管理</h4>
+              <button class="btn btn-primary btn-sm" onclick="showAddProviderModal()">+ 添加提供商</button>
+            </div>
+            <div id="adminProviderList"></div>
+          </div>
+          <div id="adminKeys" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <h4 style="font-size:13px">API 密钥管理</h4>
+              <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ 创建密钥</button>
+            </div>
+            <div id="adminKeyList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guide -->
+    <div class="section" id="tab-guide" style="display:none">
+      <div class="section-header"><div class="section-title">配置指南</div></div>
+      <div class="section-body">
+        <div class="guide-card">
+          <h4>1. 获取免费 API 密钥</h4>
+          <p>使用本中转站需要上游提供商的 API 密钥，以下均为免费注册：</p>
+          <ul style="margin-top:6px;padding-left:18px;font-size:12px;color:var(--text-secondary);line-height:2">
+            <li><strong>OpenRouter</strong> - <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> - 25+ 免费模型，推荐首选</li>
+            <li><strong>Groq</strong> - <a href="https://console.groq.com" target="_blank">console.groq.com</a> - 超快推理，14400请求/天</li>
+            <li><strong>Cerebras</strong> - <a href="https://cloud.cerebras.ai" target="_blank">cloud.cerebras.ai</a> - 超快推理，14400请求/天</li>
+            <li><strong>SambaNova</strong> - <a href="https://cloud.sambanova.ai" target="_blank">cloud.sambanova.ai</a> - $5免费额度</li>
+            <li><strong>Google AI Studio</strong> - <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> - Gemini 免费</li>
+            <li><strong>Mistral</strong> - <a href="https://console.mistral.ai" target="_blank">console.mistral.ai</a> - 10亿token/月免费</li>
+            <li><strong>GitHub Models</strong> - <a href="https://github.com/marketplace/models" target="_blank">github.com/marketplace/models</a> - GPT-4o 免费</li>
+            <li><strong>NVIDIA NIM</strong> - <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a> - 40请求/分钟</li>
+            <li><strong>Cohere</strong> - <a href="https://cohere.com" target="_blank">cohere.com</a> - Command 模型免费</li>
+          </ul>
+        </div>
+        <div class="guide-card">
+          <h4>2. 配置提供商密钥</h4>
+          <p>编辑 <code>.env</code> 文件或使用管理面板管理提供商：</p>
+          <pre style="background:var(--bg-primary);padding:10px;border-radius:8px;margin-top:6px;font-size:11px;overflow-x:auto"><code># 格式：名称|基础URL|API密钥|权重|启用
+PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
+        </div>
+        <div class="guide-card">
+          <h4>3. 使用 API</h4>
+          <p>使用 OpenAI 兼容格式发送请求：</p>
+          <pre style="background:var(--bg-primary);padding:10px;border-radius:8px;margin-top:6px;font-size:11px;overflow-x:auto"><code>curl http://localhost:3000/v1/chat/completions \
+  -H "Authorization: Bearer sk-proxy-demo-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek/deepseek-v4-flash:free","messages":[{"role":"user","content":"Hello!"}]}'</code></pre>
+        </div>
+        <div class="guide-card">
+          <h4>4. 免费模型平台一览</h4>
+          <p>接入 9 大免费平台，共 40+ 免费模型：</p>
+          <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px">
+            <span style="font-size:11px;color:var(--success)">OpenRouter (15+)</span>
+            <span style="font-size:11px;color:var(--success)">Groq (4)</span>
+            <span style="font-size:11px;color:var(--success)">Cerebras (2)</span>
+            <span style="font-size:11px;color:var(--success)">SambaNova (3)</span>
+            <span style="font-size:11px;color:var(--success)">Google AI (3)</span>
+            <span style="font-size:11px;color:var(--success)">Mistral (4)</span>
+            <span style="font-size:11px;color:var(--success)">NVIDIA NIM (2)</span>
+            <span style="font-size:11px;color:var(--success)">Cohere (3)</span>
+            <span style="font-size:11px;color:var(--success)">GitHub (4)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Provider Modal -->
+  <div class="modal-overlay" id="addProviderModal">
+    <div class="modal">
+      <h3 id="providerModalTitle">添加提供商</h3>
+      <label>提供商名称</label>
+      <input type="text" id="modalProviderName" placeholder="例如 openrouter">
+      <label>基础 URL</label>
+      <input type="text" id="modalProviderUrl" placeholder="https://openrouter.ai/api/v1">
+      <label>API 密钥</label>
+      <input type="text" id="modalProviderKey" placeholder="sk-or-...">
+      <label>权重 (1-10)</label>
+      <input type="number" id="modalProviderWeight" value="5" min="1" max="10">
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('addProviderModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveProvider()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API_BASE = '';
+    let adminToken = localStorage.getItem('relay_admin_token') || '';
+    let apiKeys = [];
+    let allModels = [];
+
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast show ${type}`;
+      setTimeout(() => t.className = 'toast', 3000);
+    }
+
+    function formatNumber(n) {
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function formatUptime(s) {
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      if (d > 0) return `${d}d ${h}h`;
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    }
+
+    function timeAgo(ts) {
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s/60)}m ago`;
+      if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+      return `${Math.floor(s/86400)}d ago`;
+    }
+
+    function showTab(name, btn) {
+      ['providers','models','logs','playground','admin','guide'].forEach(t => {
+        document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+      });
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    function showAddProviderModal(editName) {
+      document.getElementById('providerModalTitle').textContent = editName ? '编辑提供商' : '添加提供商';
+      if (!editName) {
+        document.getElementById('modalProviderName').value = '';
+        document.getElementById('modalProviderUrl').value = '';
+        document.getElementById('modalProviderKey').value = '';
+        document.getElementById('modalProviderWeight').value = '5';
+      }
+      document.getElementById('modalProviderName').disabled = !!editName;
+      document.getElementById('addProviderModal').classList.add('show');
+    }
+
+    function toggleAdmin() { showTab('admin', document.getElementById('tabAdminBtn')); }
+
+    function adminLogin() {
+      const pwd = document.getElementById('adminPassword').value;
+      if (!pwd) return;
+      adminToken = pwd;
+      localStorage.setItem('relay_admin_token', pwd);
+      document.getElementById('adminLogin').style.display = 'none';
+      document.getElementById('adminContent').style.display = '';
+      loadAdminData();
+      showToast('已登录为管理员');
+    }
+
+    function adminLogout() {
+      adminToken = '';
+      localStorage.removeItem('relay_admin_token');
+      document.getElementById('adminLogin').style.display = '';
+      document.getElementById('adminContent').style.display = 'none';
+      showToast('已退出登录', 'info');
+    }
+
+    function showAdminSection(id) {
+      ['adminProviders', 'adminKeys'].forEach(s => {
+        document.getElementById(s).style.display = s === id ? '' : 'none';
+      });
+    }
+
+    async function adminFetch(path, opts = {}) {
+      const res = await fetch(API_BASE + '/api/admin' + path, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken, ...(opts.headers || {}) },
+      });
+      return res.json();
+    }
+
+    async function loadAdminData() {
+      try {
+        const [provRes, keyRes] = await Promise.all([adminFetch('/providers'), adminFetch('/keys')]);
+        renderAdminProviders(provRes.providers || []);
+        renderAdminKeys(keyRes.keys || []);
+      } catch (e) { console.error('Admin load failed:', e); }
+    }
+
+    function renderAdminProviders(providers) {
+      const list = document.getElementById('adminProviderList');
+      list.innerHTML = providers.map(p => `
+        <div class="key-row" style="margin-bottom:6px">
+          <span style="font-weight:700;min-width:90px;font-size:12px">${p.name}</span>
+          <code style="flex:1;font-size:10px;color:var(--text-secondary)">${p.baseUrl}</code>
+          <span class="tag tag-weight">W:${p.weight}</span>
+          <span class="provider-status ${p.blocked ? 'blocked' : p.health?.healthy === false ? 'unhealthy' : 'active'}">${p.blocked ? '阻断' : p.health?.healthy === false ? '不健康' : '正常'}</span>
+          <button class="btn btn-secondary btn-sm" onclick="editProvider('${p.name}','${p.baseUrl}','${p.apiKey||''}',${p.weight})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProvider('${p.name}')">删除</button>
+        </div>
+      `).join('') || '<p style="color:var(--text-secondary);font-size:12px">暂无提供商配置。</p>';
+    }
+
+    function renderAdminKeys(keys) {
+      const list = document.getElementById('adminKeyList');
+      list.innerHTML = keys.map(k => `
+        <div class="key-row" style="margin-bottom:6px">
+          <code style="flex:1;font-size:11px;color:var(--text-secondary)">${k.key}</code>
+          <span style="font-size:11px;color:var(--text-secondary)">${k.name || 'unnamed'}</span>
+          <span style="font-size:11px;color:var(--text-secondary)">已用: ${k.usageCount || 0}</span>
+          <span class="provider-status ${k.enabled ? 'active' : 'blocked'}">${k.enabled ? '启用' : '禁用'}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteApiKey('${k.key}')">删除</button>
+        </div>
+      `).join('') || '<p style="color:var(--text-secondary);font-size:12px">暂无 API 密钥。</p>';
+    }
+
+    async function saveProvider() {
+      const name = document.getElementById('modalProviderName').value.trim();
+      const url = document.getElementById('modalProviderUrl').value.trim();
+      const key = document.getElementById('modalProviderKey').value.trim();
+      const weight = parseInt(document.getElementById('modalProviderWeight').value) || 5;
+      if (!name || !url) { showToast('名称和 URL 不能为空', 'error'); return; }
+      const isEdit = document.getElementById('modalProviderName').disabled;
+      if (isEdit) { await adminFetch('/providers/' + name, { method: 'PUT', body: JSON.stringify({ baseUrl: url, apiKey: key, weight }) }); }
+      else { await adminFetch('/providers', { method: 'POST', body: JSON.stringify({ name, baseUrl: url, apiKey: key, weight }) }); }
+      closeModal('addProviderModal');
+      loadAdminData();
+      showToast(isEdit ? '提供商已更新' : '提供商已添加');
+    }
+
+    function editProvider(name, url, key, weight) {
+      document.getElementById('modalProviderName').value = name;
+      document.getElementById('modalProviderUrl').value = url;
+      document.getElementById('modalProviderKey').value = key === 'null' ? '' : key;
+      document.getElementById('modalProviderWeight').value = weight;
+      showAddProviderModal(name);
+    }
+
+    async function deleteProvider(name) {
+      if (!confirm('确定删除提供商 "' + name + '"？')) return;
+      await adminFetch('/providers/' + name, { method: 'DELETE' });
+      loadAdminData();
+      showToast('提供商已删除', 'info');
+    }
+
+    async function createApiKey() {
+      const name = prompt('API 密钥名称（可选）：') || '未命名';
+      const res = await adminFetch('/keys', { method: 'POST', body: JSON.stringify({ name }) });
+      if (res.key) { showToast('密钥已创建: ' + res.key, 'success'); loadAdminData(); }
+    }
+
+    async function deleteApiKey(key) {
+      if (!confirm('确定撤销此 API 密钥？')) return;
+      await adminFetch('/keys/' + key.slice(-4), { method: 'DELETE' });
+      loadAdminData();
+      showToast('密钥已撤销', 'info');
+    }
+
+    function filterModels() {
+      const search = document.getElementById('modelSearch').value.toLowerCase();
+      const filter = document.getElementById('modelFilter').value;
+      const filtered = allModels.filter(m => {
+        const matchSearch = m.id.toLowerCase().includes(search) || (m.name || '').toLowerCase().includes(search);
+        const matchFilter = filter === '' || (filter === 'free' && m.free) || (filter === 'paid' && !m.free);
+        return matchSearch && matchFilter;
+      });
+      renderModels(filtered);
+    }
+
+    function renderModels(models) {
+      const mg = document.getElementById('modelsGrid');
+      mg.innerHTML = models.map(m => `
+        <div class="model-card">
+          ${m.free ? '<span class="model-free">FREE</span>' : '<span class="model-paid">PAID</span>'}
+          <span class="model-name">${m.id}</span>
+          ${m._provider ? `<span class="model-provider-tag">${m._provider}</span>` : ''}
+        </div>
+      `).join('') || '<p style="color:var(--text-secondary);font-size:12px;padding:20px">无匹配模型</p>';
+      document.getElementById('modelCount').textContent = models.length;
+    }
+
+    async function refreshStats() {
+      try {
+        const [statsRes, modelsRes] = await Promise.all([fetch(API_BASE + '/api/stats'), fetch(API_BASE + '/api/models')]);
+        const stats = await statsRes.json();
+        const models = await modelsRes.json();
+        allModels = models.data || [];
+
+        document.getElementById('statRequests').textContent = formatNumber(stats.totalRequests || 0);
+        document.getElementById('statTokens').textContent = formatNumber(stats.totalTokens || 0);
+        const total = stats.totalRequests || 0;
+        const errors = stats.totalErrors || 0;
+        document.getElementById('statErrors').textContent = (total > 0 ? ((errors / total) * 100).toFixed(1) : '0') + '%';
+        document.getElementById('errorCount').textContent = errors + ' 次错误';
+        document.getElementById('uptimeText').textContent = formatUptime(stats.uptime || 0);
+        document.getElementById('heroUptime').textContent = formatUptime(stats.uptime || 0);
+
+        const providers = stats.providers || [];
+        const active = providers.filter(p => !p.blocked && p.health?.healthy !== false).length;
+        document.getElementById('statProviders').textContent = active;
+        document.getElementById('providerSub').textContent = `共 ${providers.length} 个`;
+        document.getElementById('providerCount').textContent = providers.length;
+
+        // Providers
+        document.getElementById('providersGrid').innerHTML = providers.map(p => {
+          const status = p.blocked ? 'blocked' : (p.health?.healthy === false ? 'unhealthy' : 'active');
+          const statusText = p.blocked ? '已阻断' : (p.health?.healthy === false ? '不健康' : '正常');
+          const latency = p.health?.latency ? p.health.latency + 'ms' : '--';
+          const failures = p.health?.consecutiveFailures || 0;
+          return `
+            <div class="provider-card">
+              <div class="provider-icon" style="background:${status === 'active' ? 'rgba(59,130,246,0.12)' : status === 'blocked' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)'};color:${status === 'active' ? 'var(--accent)' : status === 'blocked' ? 'var(--error)' : 'var(--warning)'}">
+                ${p.name.charAt(0).toUpperCase()}
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">${p.name}</div>
+                <div class="provider-url">${p.baseUrl}</div>
+                <div class="provider-meta">
+                  <span class="tag tag-weight">W:${p.weight}</span>
+                  <span class="tag tag-latency">${latency}</span>
+                  ${failures > 0 ? `<span class="tag tag-failures">失败:${failures}</span>` : ''}
+                </div>
+              </div>
+              <span class="provider-status ${status}">${statusText}</span>
+            </div>`;
+        }).join('');
+
+        // Models
+        filterModels();
+
+        // Logs
+        let logs = stats.logs || [];
+        const filterModel = document.getElementById('logFilterModel').value;
+        const filterProvider = document.getElementById('logFilterProvider').value;
+        if (filterModel) logs = logs.filter(l => l.model === filterModel);
+        if (filterProvider) logs = logs.filter(l => l.provider === filterProvider);
+
+        const allLogs = stats.logs || [];
+        const models_set = [...new Set(allLogs.map(l => l.model).filter(Boolean))];
+        const providers_set = [...new Set(allLogs.map(l => l.provider).filter(Boolean))];
+        const curModel = document.getElementById('logFilterModel').value;
+        const curProvider = document.getElementById('logFilterProvider').value;
+        document.getElementById('logFilterModel').innerHTML = '<option value="">全部模型</option>' + models_set.map(m => `<option value="${m}" ${m===curModel?'selected':''}>${m}</option>`).join('');
+        document.getElementById('logFilterProvider').innerHTML = '<option value="">全部提供商</option>' + providers_set.map(p => `<option value="${p}" ${p===curProvider?'selected':''}>${p}</option>`).join('');
+
+        document.getElementById('logsBody').innerHTML = logs.slice(0, 50).map(l => `
+          <tr>
+            <td style="color:var(--text-secondary);font-size:11px">${timeAgo(l.timestamp)}</td>
+            <td style="font-family:monospace;font-size:10px;color:var(--text-secondary)">${(l.id||'').slice(0,18)}...</td>
+            <td style="font-size:12px">${l.model}</td>
+            <td><span class="log-provider">${l.provider}</span></td>
+            <td><span class="log-status ${l.status === 'error' ? 'error' : l.status === 'streaming' ? 'streaming' : 'success'}">${l.status}</span></td>
+            <td style="font-size:12px">${l.tokens || '-'}</td>
+            <td style="color:var(--text-secondary);font-size:11px">${l.duration ? l.duration + 'ms' : '-'}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:20px">暂无请求记录</td></tr>';
+      } catch (e) { console.error('Refresh failed:', e); }
+    }
+
+    async function sendPlayground() {
+      const model = document.getElementById('pgModel').value;
+      const system = document.getElementById('pgSystem').value;
+      const message = document.getElementById('pgMessage').value;
+      const stream = document.getElementById('pgStream').checked;
+      const output = document.getElementById('pgOutput');
+      const btn = document.getElementById('pgSend');
+
+      const messages = [];
+      if (system) messages.push({ role: 'system', content: system });
+      messages.push({ role: 'user', content: message });
+
+      btn.disabled = true; btn.textContent = '发送中...'; output.textContent = '';
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKeys[0]) headers['Authorization'] = 'Bearer ' + apiKeys[0];
+
+        const res = await fetch(API_BASE + '/v1/chat/completions', {
+          method: 'POST', headers, body: JSON.stringify({ model, messages, stream }),
+        });
+
+        if (!stream) {
+          const data = await res.json();
+          output.textContent = data.error ? 'Error: ' + data.error.message : (data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2));
+        } else {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n'); buffer = lines.pop();
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6).trim();
+                if (data === '[DONE]') continue;
+                try { const parsed = JSON.parse(data); const content = parsed.choices?.[0]?.delta?.content; if (content) output.textContent += content; } catch {}
+              }
+            }
+          }
+        }
+      } catch (e) { output.textContent = 'Error: ' + e.message; }
+      finally { btn.disabled = false; btn.textContent = '发送'; }
+    }
+
+    // Init
+    if (adminToken) {
+      document.getElementById('adminLogin').style.display = 'none';
+      document.getElementById('adminContent').style.display = '';
+      loadAdminData();
+    }
+    refreshStats();
+    setInterval(refreshStats, 5000);
+  </script>
+</body>
+</html>

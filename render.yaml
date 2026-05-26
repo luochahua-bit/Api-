@@ -1,0 +1,58 @@
+services:
+  - type: web
+    name: llm-api-relay
+    runtime: node
+    plan: free
+    buildCommand: npm ci --production
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: API_KEYS
+        generateValue: true
+      - key: ADMIN_IP_WHITELIST
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "120"
+      - key: MAX_RETRIES
+        value: "3"
+      - key: REQUEST_TIMEOUT_MS
+        value: "120000"
+      - key: HEALTH_CHECK_INTERVAL_MS
+        value: "60000"
+      - key: MAX_LOG_ENTRIES
+        value: "2000"
+      # Free providers - add your keys
+      - key: PROVIDERS
+        sync: false
+      - key: PROVIDERS_2
+        sync: false
+      - key: PROVIDERS_3
+        sync: false
+      - key: PROVIDERS_4
+        sync: false
+      - key: PROVIDERS_5
+        sync: false
+      - key: PROVIDERS_6
+        sync: false
+      - key: PROVIDERS_7
+        sync: false
+      - key: PROVIDERS_8
+        sync: false
+      - key: PROVIDERS_9
+        sync: false
+      - key: PROVIDERS_10
+        sync: false
+      - key: PROVIDERS_11
+        sync: false
+    disk:
+      name: relay-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
