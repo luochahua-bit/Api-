@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
+const { sanitizeResponse, sanitizeStreamChunk, logIncident } = require('../services/security');
 const store = require('../store');
 const userAuth = require('../middleware/userAuth');
 const { JWT_SECRET } = require('../middleware/userAuth');
@@ -597,8 +598,31 @@ router.post('/v1/chat/completions', async (req, res) => {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      resp.data.pipe(res);
+
+      // Stream with security scanning
+      const chunks = [];
+      resp.data.on('data', (chunk) => {
+        const chunkStr = chunk.toString();
+        const check = sanitizeStreamChunk(chunkStr);
+        if (!check.safe) {
+          logIncident(store, listing.id, buyerKey.userId, check.warnings[0], { model: req.body.model });
+          // Send sanitized chunk instead
+          res.write(check.chunk);
+        } else {
+          res.write(chunk);
+        }
+      });
+      resp.data.on('end', () => res.end());
+      resp.data.on('error', () => res.end());
+      req.on('close', () => resp.data.destroy());
     } else {
+      // Non-streaming: validate and sanitize full response
+      const sanitized = sanitizeResponse(resp.data);
+      if (!sanitized.safe) {
+        logIncident(store, listing.id, buyerKey.userId, sanitized.reason, {
+          model: req.body.model, warnings: sanitized.warnings,
+        });
+      }
       const usage = resp.data?.usage;
       const tokens = usage ? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0) : 0;
       if (listing.pricePerToken > 0 && tokens > 0) {
@@ -608,7 +632,7 @@ router.post('/v1/chat/completions', async (req, res) => {
           processPayment(buyerKey.userId, listing.sellerId, listing.id, tokenCost);
         }
       }
-      res.json(resp.data);
+      res.json(sanitized.data);
     }
   } catch (err) {
     res.status(err.response?.status || 502).json(err.response?.data || { error: { message: `Proxy error: ${err.message}` } });

@@ -374,8 +374,6 @@
   <link rel="manifest" href="/fixes/manifest.json">
   <link rel="icon" href="/fixes/icon-192.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/fixes/dashboard-styles.css">
-  <link rel="preconnect" href="https://openrouter.ai">
-  <link rel="dns-prefetch" href="https://api.groq.com">
 </head>
 <body>
   <div class="header">
@@ -544,7 +542,7 @@
               <div class="chart-container">
                 <div class="chart-title">💡 建议操作</div>
                 <div id="suggestions">
-                  <div class="suggestion-card" onclick="showTab('playground',document.querySelectorAll('.tab')[4])">
+                  <div class="suggestion-card" onclick="showTab('playground',document.querySelectorAll('.tab')[3])">
                     <div class="suggestion-icon">🧪</div>
                     <div class="suggestion-text">
                       <strong>测试 API</strong>
@@ -558,7 +556,7 @@
                       <span>发现更多供应商和模型</span>
                     </div>
                   </div>
-                  <div class="suggestion-card" onclick="showTab('guide',document.querySelectorAll('.tab')[6])">
+                  <div class="suggestion-card" onclick="showTab('guide',document.querySelectorAll('.tab')[4])">
                     <div class="suggestion-icon">📖</div>
                     <div class="suggestion-text">
                       <strong>配置指南</strong>
@@ -1005,6 +1003,28 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       loadDashboard();
     }
 
+    function loadDashboard() {
+      filterModels();
+    }
+
+    function toggleFreeFilter() {
+      toggleFreeFilter._active = !toggleFreeFilter._active;
+      const btn = document.getElementById('freeFilterBtn');
+      if (btn) {
+        btn.style.background = toggleFreeFilter._active ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.1)';
+        btn.style.borderColor = toggleFreeFilter._active ? '#10b981' : 'rgba(16,185,129,0.2)';
+        btn.textContent = toggleFreeFilter._active ? '🎁 仅免费' : '🎁 免费';
+      }
+      document.querySelectorAll('.provider-card').forEach(card => {
+        const nameEl = card.querySelector('.provider-name');
+        if (!nameEl) return;
+        const name = nameEl.textContent.split(' (')[0].trim();
+        const freeCount = allModels.filter(m => m.provider === name && m.free).length;
+        card.style.opacity = (toggleFreeFilter._active && freeCount === 0) ? '0.25' : '';
+        card.style.pointerEvents = (toggleFreeFilter._active && freeCount === 0) ? 'none' : '';
+      });
+    }
+
     function filterModels() {
       const search = document.getElementById('modelSearch').value.toLowerCase();
       const filter = document.getElementById('modelFilter').value;
@@ -1225,8 +1245,8 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         if (completedOrders.length === 0) {
           suggestions.push({ icon: '🛒', title: '浏览市场', desc: '发现更多供应商和模型', action: "window.location='/market'" });
         }
-        suggestions.push({ icon: '🧪', title: '测试 API', desc: '在测试台中试用免费模型', action: "showTab('playground',document.querySelectorAll('.tab')[4])" });
-        suggestions.push({ icon: '📖', title: '配置指南', desc: '获取免费 API 密钥', action: "showTab('guide',document.querySelectorAll('.tab')[6])" });
+        suggestions.push({ icon: '🧪', title: '测试 API', desc: '在测试台中试用免费模型', action: "showTab('playground',document.querySelectorAll('.tab')[3])" });
+        suggestions.push({ icon: '📖', title: '配置指南', desc: '获取免费 API 密钥', action: "showTab('guide',document.querySelectorAll('.tab')[4])" });
         if (currentUser.role === 'buyer') {
           suggestions.push({ icon: '🏪', title: '成为卖家', desc: '上架您的 API Key 赚取收益', action: "window.location='/market'" });
         }
@@ -1244,7 +1264,10 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       } catch (e) { console.error('User stats load failed:', e); }
     }
 
+    let _refreshing = false;
     async function refreshStats() {
+      if (_refreshing) return;
+      _refreshing = true;
       try {
         const [statsRes, modelsRes] = await Promise.all([fetch(API_BASE + '/api/stats'), fetch(API_BASE + '/api/models')]);
         const stats = await statsRes.json();
@@ -1325,7 +1348,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
             <td style="color:var(--text-secondary);font-size:11px">${l.duration ? l.duration + 'ms' : '-'}</td>
           </tr>
         `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:20px">暂无请求记录</td></tr>';
-      } catch (e) { console.error('Refresh failed:', e); }
+      } catch (e) { console.error('Refresh failed:', e); } finally { _refreshing = false; }
     }
 
     async function sendPlayground() {
@@ -1385,6 +1408,5 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     refreshStats();
     setInterval(refreshStats, 5000);
   </script>
-  <script src="/fixes/dashboard-patch.js" defer></script>
 </body>
 </html>

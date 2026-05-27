@@ -1,6 +1,7 @@
 const axios = require('axios');
 const config = require('../config');
 const providerManager = require('./provider');
+const { sanitizeResponse } = require('./security');
 
 const FREE_MODEL_PATTERNS = [':free'];
 
