@@ -8,14 +8,7 @@ const logger = require('../services/logger');
 
 const router = Router();
 
-// Login
-router.post('/login', (req, res) => {
-  const { password } = req.body;
-  if (password !== config.adminPassword) {
-    return res.status(401).json({ error: { message: 'Invalid password' } });
-  }
-  res.json({ success: true, token: config.adminPassword });
-});
+// Login endpoint is now in index.js (before adminAuth middleware)
 
 // Providers
 router.get('/providers', (req, res) => {

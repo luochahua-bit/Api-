@@ -1,4 +1,7 @@
 const config = require('../config');
+const crypto = require('crypto');
+
+const HASHED_TOKEN = 'adm_' + crypto.createHash('sha256').update(config.adminPassword + 'admin-salt').digest('hex').slice(0, 32);
 
 module.exports = function adminAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -9,9 +12,10 @@ module.exports = function adminAuth(req, res, next) {
   }
 
   const token = authHeader.slice(7);
-  if (token !== config.adminPassword) {
+  // Accept only the hashed token (not the raw password)
+  if (token !== HASHED_TOKEN) {
     return res.status(403).json({
-      error: { message: 'Invalid admin password', type: 'auth_error' },
+      error: { message: 'Invalid admin token', type: 'auth_error' },
     });
   }
 

@@ -1,0 +1,279 @@
+/* LLM API Relay - Dashboard Responsive & UX Patch */
+/* Loaded via /fixes/dashboard-styles.css — does NOT modify original styles */
+
+/* ===== Loading Skeleton ===== */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-card) 50%, var(--bg-hover) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 6px;
+  color: transparent !important;
+}
+.skeleton * { visibility: hidden; }
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ===== Copy Button ===== */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 8px;
+}
+.copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.08);
+}
+.copy-btn.copied {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* ===== Error Toast ===== */
+.toast.error { background: var(--error); }
+.toast.info { background: var(--accent); }
+
+/* ===== Stats Grid Fix: 3x3 ===== */
+.stats-grid {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+
+/* ===== Logs Table Wrapper ===== */
+#logsBody {
+  display: table-row-group;
+}
+.section-body:has(.logs-table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.logs-table {
+  min-width: 650px;
+}
+
+/* ===== Guide Grid ===== */
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* ===== PWA Install Banner ===== */
+.install-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.3s ease;
+  max-width: 90%;
+}
+.install-banner .install-text { font-size: 13px; font-weight: 500; }
+.install-banner .install-btn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.install-banner .install-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ===== Error State Display ===== */
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  color: var(--error);
+  font-size: 12px;
+  margin: 8px 0;
+}
+.error-state .retry-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--error);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* ===== Offline Indicator ===== */
+.offline-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--warning);
+  color: #000;
+  text-align: center;
+  padding: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 9999;
+  display: none;
+}
+.offline-bar.show { display: block; }
+
+/* ===== Mobile: 480px ===== */
+@media (max-width: 480px) {
+  .header {
+    padding: 10px 12px !important;
+    gap: 8px;
+  }
+  .header h1 { font-size: 13px !important; }
+  .header-left { gap: 8px; }
+  .logo { padding: 6px 10px !important; font-size: 12px !important; }
+  .main { padding: 12px !important; }
+  .hero {
+    padding: 16px !important;
+    border-radius: 14px !important;
+  }
+  .hero-text h2 { font-size: 16px !important; }
+  .hero-text p { font-size: 12px !important; }
+  .hero-stats {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .hero-stat { min-width: 70px !important; padding: 8px 12px !important; }
+  .hero-stat-val { font-size: 18px !important; }
+  .stat-value { font-size: 20px !important; }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 40px;
+  }
+  .providers-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .models-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .section { border-radius: 12px !important; }
+  .section-body { padding: 12px !important; }
+  .section-header { padding: 10px 14px !important; }
+  .playground { grid-template-columns: 1fr !important; }
+  /* Touch targets */
+  .tab, button, .btn, [onclick] {
+    min-height: 44px;
+  }
+  /* Fix search bar */
+  .search-bar input {
+    font-size: 16px; /* prevents iOS zoom */
+  }
+}
+
+/* ===== Tablet: 768px ===== */
+@media (max-width: 768px) {
+  .header {
+    padding: 10px 16px !important;
+    flex-wrap: wrap;
+  }
+  .header-right { gap: 6px; }
+  .main { padding: 14px 16px !important; }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .user-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .providers-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .logs-table { min-width: 650px; }
+  .guide-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .hero-stats {
+    width: 100%;
+    justify-content: space-around;
+  }
+  /* Performance chart */
+  .chart-container { overflow: hidden; }
+  .perf-grid {
+    grid-template-columns: 1fr !important;
+  }
+  /* Admin section */
+  .admin-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===== Free Filter Badge ===== */
+.free-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  pointer-events: none;
+}
+#freeFilterBtn:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+  transform: translateY(-1px);
+}
+
+/* ===== Provider Card Selected State ===== */
+.provider-card[style*="border-color:var(--accent)"] {
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* ===== Print ===== */
+@media print {
+  body::before { display: none; }
+  .header { position: static; }
+  .tabs, .playground, .install-banner { display: none !important; }
+}

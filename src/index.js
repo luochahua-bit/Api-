@@ -9,6 +9,7 @@ const rateLimit = require('./middleware/rateLimit');
 const { securityHeaders, adminIpWhitelist, auditLog } = require('./middleware/security');
 const v1Routes = require('./routes/v1');
 const adminRoutes = require('./routes/admin');
+const marketRoutes = require('./routes/marketplace');
 const providerManager = require('./services/provider');
 const store = require('./store');
 const healthCheck = require('./services/healthCheck');
@@ -32,6 +33,20 @@ const dashboardHtml = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'u
 app.get('/', (req, res) => {
   res.type('html').send(dashboardHtml);
 });
+
+// Marketplace page
+const marketHtml = fs.readFileSync(path.join(__dirname, 'marketplace.html'), 'utf8');
+app.get('/market', (req, res) => {
+  res.type('html').send(marketHtml);
+});
+
+// Static fix files (CSS, JS, PWA assets)
+app.use('/fixes', express.static(path.join(__dirname, 'fixes'), {
+  maxAge: '1h',
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'public, max-age=3600');
+  }
+}));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -57,21 +72,21 @@ app.get('/api/stats', (req, res) => {
 app.get('/api/models', (req, res) => {
   const freeModels = [
     // OpenRouter 免费模型
-    { id: 'deepseek/deepseek-v4-flash:free', name: 'DeepSeek V4 Flash', free: true, provider: 'openrouter' },
-    { id: 'google/gemma-4-31b-it:free', name: 'Google Gemma 4 31B', free: true, provider: 'openrouter' },
-    { id: 'google/gemma-4-26b-a4b-it:free', name: 'Google Gemma 4 26B', free: true, provider: 'openrouter' },
-    { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'NVIDIA Nemotron 3 Super 120B', free: true, provider: 'openrouter' },
-    { id: 'nvidia/nemotron-3-nano-30b-a3b:free', name: 'NVIDIA Nemotron 3 Nano 30B', free: true, provider: 'openrouter' },
-    { id: 'minimax/minimax-m2.5:free', name: 'MiniMax M2.5', free: true, provider: 'openrouter' },
-    { id: 'poolside/laguna-m.1:free', name: 'Poolside Laguna M.1', free: true, provider: 'openrouter' },
-    { id: 'baidu/cobuddy:free', name: 'Baidu CoBuddy', free: true, provider: 'openrouter' },
-    { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 Llama 405B', free: true, provider: 'openrouter' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', free: true, provider: 'openrouter' },
-    { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B', free: true, provider: 'openrouter' },
-    { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B', free: true, provider: 'openrouter' },
-    { id: 'qwen/qwen3-coder:free', name: 'Qwen3 Coder', free: true, provider: 'openrouter' },
-    { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B', free: true, provider: 'openrouter' },
-    { id: 'z-ai/glm-4.5-air:free', name: 'GLM 4.5 Air', free: true, provider: 'openrouter' },
+    { id: 'deepseek/deepseek-v4-flash:free', name: 'DeepSeek V4 Flash', free: true, provider: 'openrouter-free' },
+    { id: 'google/gemma-4-31b-it:free', name: 'Google Gemma 4 31B', free: true, provider: 'openrouter-free' },
+    { id: 'google/gemma-4-26b-a4b-it:free', name: 'Google Gemma 4 26B', free: true, provider: 'openrouter-free' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'NVIDIA Nemotron 3 Super 120B', free: true, provider: 'openrouter-free' },
+    { id: 'nvidia/nemotron-3-nano-30b-a3b:free', name: 'NVIDIA Nemotron 3 Nano 30B', free: true, provider: 'openrouter-free' },
+    { id: 'minimax/minimax-m2.5:free', name: 'MiniMax M2.5', free: true, provider: 'openrouter-free' },
+    { id: 'poolside/laguna-m.1:free', name: 'Poolside Laguna M.1', free: true, provider: 'openrouter-free' },
+    { id: 'baidu/cobuddy:free', name: 'Baidu CoBuddy', free: true, provider: 'openrouter-free' },
+    { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 Llama 405B', free: true, provider: 'openrouter-free' },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', free: true, provider: 'openrouter-free' },
+    { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B', free: true, provider: 'openrouter-free' },
+    { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B', free: true, provider: 'openrouter-free' },
+    { id: 'qwen/qwen3-coder:free', name: 'Qwen3 Coder', free: true, provider: 'openrouter-free' },
+    { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B', free: true, provider: 'openrouter-free' },
+    { id: 'z-ai/glm-4.5-air:free', name: 'GLM 4.5 Air', free: true, provider: 'openrouter-free' },
     // Groq 免费模型
     { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)', free: true, provider: 'groq' },
     { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', free: true, provider: 'groq' },
@@ -85,26 +100,26 @@ app.get('/api/models', (req, res) => {
     { id: 'DeepSeek-R1-Distill-Llama-70B', name: 'DeepSeek R1 Distill 70B (SambaNova)', free: true, provider: 'sambanova' },
     { id: 'Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (SambaNova)', free: true, provider: 'sambanova' },
     // Google AI Studio 免费模型
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Google)', free: true, provider: 'google' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Google)', free: true, provider: 'google' },
-    { id: 'gemma-3-27b-it', name: 'Gemma 3 27B (Google)', free: true, provider: 'google' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Google)', free: true, provider: 'google-ai' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Google)', free: true, provider: 'google-ai' },
+    { id: 'gemma-3-27b-it', name: 'Gemma 3 27B (Google)', free: true, provider: 'google-ai' },
     // Mistral 免费模型
     { id: 'mistral-small-latest', name: 'Mistral Small (Mistral)', free: true, provider: 'mistral' },
     { id: 'mistral-medium-latest', name: 'Mistral Medium (Mistral)', free: true, provider: 'mistral' },
     { id: 'codestral-latest', name: 'Codestral (Mistral)', free: true, provider: 'mistral' },
     { id: 'pixtral-large-latest', name: 'Pixtral Large (Mistral)', free: true, provider: 'mistral' },
     // NVIDIA NIM 免费模型
-    { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (NVIDIA)', free: true, provider: 'nvidia' },
-    { id: 'deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Qwen 32B (NVIDIA)', free: true, provider: 'nvidia' },
+    { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (NVIDIA)', free: true, provider: 'nvidia-nim' },
+    { id: 'deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Qwen 32B (NVIDIA)', free: true, provider: 'nvidia-nim' },
     // Cohere 免费模型
     { id: 'command-a-03-2025', name: 'Command A (Cohere)', free: true, provider: 'cohere' },
     { id: 'command-r-plus-08-2024', name: 'Command R Plus (Cohere)', free: true, provider: 'cohere' },
     { id: 'command-r-08-2024', name: 'Command R (Cohere)', free: true, provider: 'cohere' },
     // GitHub Models 免费模型
-    { id: 'gpt-4o', name: 'GPT-4o (GitHub)', free: true, provider: 'github' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini (GitHub)', free: true, provider: 'github' },
-    { id: 'DeepSeek-R1', name: 'DeepSeek R1 (GitHub)', free: true, provider: 'github' },
-    { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (GitHub)', free: true, provider: 'github' },
+    { id: 'gpt-4o', name: 'GPT-4o (GitHub)', free: true, provider: 'github-models' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini (GitHub)', free: true, provider: 'github-models' },
+    { id: 'DeepSeek-R1', name: 'DeepSeek R1 (GitHub)', free: true, provider: 'github-models' },
+    { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (GitHub)', free: true, provider: 'github-models' },
     // 付费模型
     { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', free: false, provider: 'paid' },
     { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', free: false, provider: 'paid' },
@@ -119,8 +134,22 @@ app.get('/api/models', (req, res) => {
 // API routes
 app.use('/v1', auth, rateLimit, v1Routes);
 
+// Admin login (no auth required)
+const crypto = require('crypto');
+const ADMIN_HASHED_TOKEN = 'adm_' + crypto.createHash('sha256').update(config.adminPassword + 'admin-salt').digest('hex').slice(0, 32);
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  if (password !== config.adminPassword) {
+    return res.status(401).json({ error: { message: 'Invalid password' } });
+  }
+  res.json({ success: true, token: ADMIN_HASHED_TOKEN });
+});
+
 // Admin routes (with IP whitelist in production)
 app.use('/api/admin', adminIpWhitelist, adminAuth, adminRoutes);
+
+// Marketplace routes
+app.use('/api/market', marketRoutes);
 
 // 404
 app.use((req, res) => {
@@ -133,18 +162,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: { message: 'Internal server error', type: 'server_error' } });
 });
 
-app.listen(config.port, () => {
-  console.log('');
-  console.log('========================================');
-  console.log('  LLM API Relay Station v2.0');
-  console.log('========================================');
-  console.log(`  Port: ${config.port}`);
-  console.log(`  Dashboard: http://localhost:${config.port}`);
-  console.log(`  Admin Password: ${config.adminPassword}`);
-  console.log(`  Providers: ${store.getProviders().map(p => p.name).join(', ') || 'none'}`);
-  console.log(`  API Keys: ${store.getApiKeys().length}`);
-  console.log('========================================');
-  console.log('');
+// Only start server when running directly (not in Vercel serverless)
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log('');
+    console.log('========================================');
+    console.log('  LLM API Relay Station v2.0');
+    console.log('========================================');
+    console.log(`  Port: ${config.port}`);
+    console.log(`  Dashboard: http://localhost:${config.port}`);
+    console.log(`  Admin Password: ${config.adminPassword}`);
+    console.log(`  Providers: ${store.getProviders().map(p => p.name).join(', ') || 'none'}`);
+    console.log(`  API Keys: ${store.getApiKeys().length}`);
+    console.log('========================================');
+    console.log('');
 
-  healthCheck.start();
-});
+    healthCheck.start();
+  });
+}
+
+module.exports = app;

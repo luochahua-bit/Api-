@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API 市场 - LLM 交易平台</title>
+<style>
+:root{--bg:#0f1117;--bg2:#1a1d27;--card:#1e2235;--card-hover:#252a40;--border:#2a2d3a;--primary:#6366f1;--primary-hover:#818cf8;--primary-bg:rgba(99,102,241,.1);--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--info:#3b82f6;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--input-bg:#151828;--shadow:0 4px 24px rgba(0,0,0,.3)}
+[data-theme="light"]{--bg:#f1f5f9;--bg2:#ffffff;--card:#ffffff;--card-hover:#f8fafc;--border:#e2e8f0;--primary:#6366f1;--primary-hover:#4f46e5;--primary-bg:rgba(99,102,241,.08);--text:#1e293b;--text2:#475569;--text3:#94a3b8;--input-bg:#f8fafc;--shadow:0 4px 24px rgba(0,0,0,.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s}
+a{color:var(--primary);text-decoration:none}
+.container{max-width:1200px;margin:0 auto;padding:0 16px}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 0;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+header .container{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.logo{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--primary),#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;cursor:pointer}
+nav{display:flex;gap:2px;align-items:center}
+nav button{background:none;border:none;color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:.2s}
+nav button:hover,nav button.active{background:var(--primary-bg);color:var(--primary)}
+.header-right{display:flex;align-items:center;gap:8px}
+.btn{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:.2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-hover)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-outline{background:none;border:1px solid var(--border);color:var(--text2)}.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-ghost{background:none;border:none;color:var(--text3);cursor:pointer;padding:6px;border-radius:6px;font-size:16px}.btn-ghost:hover{background:var(--primary-bg);color:var(--primary)}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+.badge-green{background:rgba(34,197,94,.15);color:#22c55e}
+.badge-yellow{background:rgba(245,158,11,.15);color:#f59e0b}
+.badge-red{background:rgba(239,68,68,.15);color:#ef4444}
+.badge-blue{background:rgba(59,130,247,.15);color:#3b82f6}
+.badge-purple{background:rgba(168,85,247,.15);color:#a855f7}
+.badge-verified{background:rgba(34,197,94,.15);color:#22c55e}
+input,select,textarea{background:var(--input-bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px;width:100%;outline:none;transition:.2s}
+input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-bg)}
+textarea{min-height:60px;resize:vertical}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:500}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:.2s}
+.card:hover{border-color:var(--primary);box-shadow:var(--shadow)}
+.hidden{display:none!important}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h2{margin-bottom:16px;font-size:18px}
+.modal-close{float:right;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1}
+.toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:10px;color:#fff;font-size:13px;z-index:999;animation:slideIn .3s;max-width:350px;word-break:break-all}
+.toast-success{background:#22c55e}.toast-error{background:#ef4444}.toast-info{background:#3b82f6}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.stat-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.stat-row:last-child{border-bottom:none}
+.empty{text-align:center;padding:48px 16px;color:var(--text3)}
+.icon-provider{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+.provider-openrouter{background:linear-gradient(135deg,#6366f1,#a855f7)}
+.provider-groq{background:linear-gradient(135deg,#f59e0b,#ef4444)}
+.provider-cerebras{background:linear-gradient(135deg,#22c55e,#06b6d4)}
+.provider-google{background:linear-gradient(135deg,#3b82f6,#22c55e)}
+.provider-sambanova{background:linear-gradient(135deg,#ec4899,#a855f7)}
+.provider-mistral{background:linear-gradient(135deg,#f97316,#f59e0b)}
+.provider-nvidia{background:linear-gradient(135deg,#22c55e,#16a34a)}
+.provider-cohere{background:linear-gradient(135deg,#6366f1,#3b82f6)}
+.provider-github{background:linear-gradient(135deg,#64748b,#334155)}
+.provider-default{background:linear-gradient(135deg,#6366f1,#3b82f6)}
+.model-tag{display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);padding:3px 10px;border-radius:6px;font-size:11px;margin:2px;font-weight:500}
+.model-tag .rate{color:var(--warning);font-weight:700}
+.listing-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.listing-grid.compact{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.listing-card{cursor:pointer;position:relative;overflow:hidden}
+.listing-card .card-header{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px}
+.listing-card .card-body{font-size:12px;color:var(--text3)}
+.listing-card .card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.listing-grid.compact .listing-card{padding:10px}
+.listing-grid.compact .card-header{margin-bottom:6px}
+.listing-grid.compact .model-tag{padding:2px 6px;font-size:10px}
+.listing-grid.compact .card-footer{margin-top:8px;padding-top:6px}
+.search-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-bar input{flex:1;min-width:200px}
+.search-bar select{width:auto}
+.theme-btn{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--bg2);transition:.2s}
+.theme-btn:hover{border-color:var(--primary)}
+.size-btn{padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:12px;transition:.2s}
+.size-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.key-display{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;word-break:break-all;position:relative;margin:12px 0}
+.key-display .copy-btn{position:absolute;top:8px;right:8px;background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px}
+.escrow-status{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600}
+.escrow-frozen{background:rgba(245,158,11,.1);color:#f59e0b}
+.escrow-completed{background:rgba(34,197,94,.1);color:#22c55e}
+.escrow-refunded{background:rgba(239,68,68,.1);color:#ef4444}
+.hero{text-align:center;padding:48px 16px 32px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(168,85,247,.06));border-radius:16px;margin-bottom:24px;border:1px solid var(--border)}
+.hero h1{font-size:28px;font-weight:800;margin-bottom:8px;background:linear-gradient(135deg,var(--primary),#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--text2);font-size:14px;margin-bottom:16px}
+.hero-stats{display:flex;justify-content:center;gap:32px;margin-top:16px}
+.hero-stat{text-align:center}
+.hero-stat .num{font-size:24px;font-weight:800;color:var(--primary)}
+.hero-stat .label{font-size:11px;color:var(--text3)}
+</style>
+<meta name="theme-color" content="#6366f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="LLM API Key 交易平台 - 买卖 API 密钥，支持 OpenRouter、Groq、Cerebras 等">
+<link rel="manifest" href="/fixes/manifest.json">
+<link rel="icon" href="/fixes/icon-192.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/fixes/marketplace-styles.css">
+</head>
+<body>
+<header>
+<div class="container">
+  <div style="display:flex;align-items:center;gap:16px">
+    <a href="/" class="logo">LLM API Relay</a>
+    <nav id="mainNav">
+      <button onclick="showPage('home')" data-page="home" class="active">首页</button>
+      <button onclick="showPage('browse')" data-page="browse">市场</button>
+      <button onclick="showPage('sell')" data-page="sell">卖 Key</button>
+      <button onclick="showPage('orders')" data-page="orders">订单</button>
+      <button onclick="showPage('wallet')" data-page="wallet">钱包</button>
+      <a href="/" class="btn btn-sm btn-outline">管理面板</a>
+    </nav>
+  </div>
+  <div class="header-right">
+    <a href="/" class="btn btn-sm btn-outline" style="text-decoration:none" title="返回控制面板">🏠 控制面板</a>
+    <span id="userDisplay" class="hidden" style="font-size:13px;font-weight:600"></span>
+    <span class="hidden" id="balanceDisplay" style="font-size:12px;color:var(--success);font-weight:700"></span>
+    <span class="hidden" id="frozenDisplay" style="font-size:11px;color:var(--warning)"></span>
+    <div style="display:flex;gap:4px;align-items:center">
+      <button class="theme-btn" onclick="toggleTheme()" title="切换主题" id="themeBtn">🌙</button>
+      <button class="size-btn" onclick="toggleCardSize()" title="切换卡片大小" id="sizeToggle">大/小</button>
+    </div>
+    <button class="btn btn-sm btn-outline" onclick="showAuthModal()" id="loginBtn">登录</button>
+    <button class="btn btn-sm btn-outline hidden" onclick="logout()" id="logoutBtn">退出</button>
+  </div>
+</div>
+</header>
+
+<div class="container" style="padding-top:16px;padding-bottom:32px">
+
+  <!-- Home Page -->
+  <div id="page-home">
+    <div class="hero">
+      <h1>API Key 交易平台</h1>
+      <p>买卖 API Key，安全担保交易，模型倍率透明</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="showPage('browse')">浏览市场</button>
+        <button class="btn btn-outline" onclick="showPage('sell')">我要卖 Key</button>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="num" id="statListings">0</div><div class="label">在售商品</div></div>
+        <div class="hero-stat"><div class="num" id="statModels">0</div><div class="label">可用模型</div></div>
+        <div class="hero-stat"><div class="num" id="statTrades">0</div><div class="label">成交笔数</div></div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:12px;font-size:15px">热门商品</h3>
+    <div id="hotListings" class="listing-grid"></div>
+  </div>
+
+  <!-- Browse Page -->
+  <div id="page-browse" class="hidden">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="搜索模型名称，如 gpt-4o、deepseek..." onkeyup="if(event.key==='Enter')loadListings()">
+      <select id="sortSelect" onchange="loadListings()" style="width:auto">
+        <option value="createdAt">最新上架</option>
+        <option value="price">价格低→高</option>
+        <option value="rating">评分高→低</option>
+        <option value="quota">库存多→少</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="loadListings()">搜索</button>
+    </div>
+    <div id="listingsGrid" class="listing-grid"></div>
+    <div id="listingsEmpty" class="empty hidden">
+      <div style="font-size:40px;margin-bottom:12px">🔍</div>
+      <div>暂无匹配的商品</div>
+    </div>
+  </div>
+
+  <!-- Sell Page -->
+  <div id="page-sell" class="hidden">
+    <h2 style="margin-bottom:16px;font-size:18px">上架 API Key</h2>
+    <div class="card" style="max-width:640px">
+      <div class="form-group"><label>API Base URL</label><input type="text" id="sellBaseUrl" placeholder="https://api.example.com/v1"></div>
+      <div class="form-group"><label>API Key</label><input type="password" id="sellApiKey" placeholder="sk-xxxxx"></div>
+      <button class="btn btn-secondary" id="probeBtn" onclick="probeModels()" style="width:100%;margin-bottom:14px">🔍 探测可用模型</button>
+      <div id="probeResult" style="display:none;margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px">检测到 <span id="probeCount">0</span> 个模型，勾选要上架的：</div>
+        <div id="probeModelsList" style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">
+          <button class="btn btn-sm btn-secondary" onclick="selectAllModels(true)">全选</button>
+          <button class="btn btn-sm btn-secondary" onclick="selectAllModels(false)" style="margin-left:4px">全不选</button>
+          <span style="margin-left:8px">已选 <span id="selectedCount">0</span> 个</span>
+        </div>
+      </div>
+      <div class="form-group"><label>商品描述</label><textarea id="sellDescription" placeholder="例如：GPT-4o 额度，还剩 $50"></textarea></div>
+      <div class="form-group" id="manualModelsGroup"><label>手动填写模型（逗号分隔，探测后自动填充）</label><input type="text" id="sellModels" placeholder="gpt-4o, gpt-4o-mini, deepseek-chat"></div>
+      <div class="form-group"><label>模型倍率（JSON格式，如 {"gpt-4o":10,"gpt-4o-mini":1}）</label><input type="text" id="sellModelRates" placeholder='{"gpt-4o":10,"gpt-3.5-turbo":1}'></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div class="form-group"><label>基础价格/次</label><input type="number" id="sellPriceReq" placeholder="0.01" step="0.001" min="0"></div>
+        <div class="form-group"><label>价格/Token</label><input type="number" id="sellPriceToken" placeholder="0.00001" step="0.000001" min="0"></div>
+        <div class="form-group"><label>总配额</label><input type="number" id="sellQuota" placeholder="10000" min="1"></div>
+      </div>
+      <div class="form-group">
+        <label>使用模式</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--secondary-bg);border:2px solid var(--primary);border-radius:8px;cursor:pointer;font-size:12px;flex:1">
+            <input type="radio" name="sharingMode" value="shared" checked> 👥 <strong>共享</strong> <span style="color:var(--text3);font-size:11px">多人共用，按量计费</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--secondary-bg);border:2px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;flex:1">
+            <input type="radio" name="sharingMode" value="exclusive"> 🔒 <strong>独占</strong> <span style="color:var(--text3);font-size:11px">一人独享，售出即止</span>
+          </label>
+        </div>
+      </div>
+      <div style="background:var(--primary-bg);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2)">
+        <strong style="color:var(--primary)">模型验证：</strong>上架时系统会自动验证你的 API Key 和模型是否可用。购买时会再次验证，确保买家权益。
+      </div>
+      <button class="btn btn-primary" onclick="createListing()" style="width:100%">上架（自动验证）</button>
+    </div>
+    <h3 style="margin:24px 0 12px;font-size:15px">我的商品</h3>
+    <div id="myListings"></div>
+  </div>
+
+  <!-- Orders Page -->
+  <div id="page-orders" class="hidden">
+    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">
+      <button class="btn btn-sm btn-primary" id="tabBuyer" onclick="loadOrders('buyer')">我买的</button>
+      <button class="btn btn-sm btn-outline" id="tabSeller" onclick="loadOrders('seller')">我卖的</button>
+    </div>
+    <div id="ordersList"></div>
+  </div>
+
+  <!-- Wallet Page -->
+  <div id="page-wallet" class="hidden">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">可用余额</div>
+        <div style="font-size:28px;font-weight:800;color:var(--success);margin:6px 0" id="walletBalance">0</div>
+        <div style="font-size:11px;color:var(--text3)">平台币</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">冻结资金</div>
+        <div style="font-size:28px;font-weight:800;color:var(--warning);margin:6px 0" id="walletFrozen">0</div>
+        <div style="font-size:11px;color:var(--text3)">交易中</div>
+      </div>
+      <div class="card">
+        <div class="stat-row"><span>累计消费</span><span id="walletSpending" style="font-weight:700">0</span></div>
+        <div class="stat-row"><span>累计收入</span><span id="walletEarnings" style="font-weight:700">0</span></div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:12px;font-size:15px">交易记录</h3>
+    <div id="transactionsList"></div>
+  </div>
+</div>
+
+<!-- Auth Modal -->
+<div id="authModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('authModal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('authModal')">&times;</button>
+    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">
+      <button class="btn btn-sm btn-primary" id="authTabLogin" onclick="switchAuthTab('login')">登录</button>
+      <button class="btn btn-sm btn-outline" id="authTabRegister" onclick="switchAuthTab('register')">注册</button>
+    </div>
+    <div id="loginForm">
+      <div class="form-group"><label>用户名</label><input type="text" id="loginUsername" placeholder="demo_buyer"></div>
+      <div class="form-group"><label>密码</label><input type="password" id="loginPassword" placeholder="demo123"></div>
+      <button class="btn btn-primary" onclick="doLogin()" style="width:100%">登录</button>
+      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">演示账号: demo_buyer / demo123</div>
+    </div>
+    <div id="registerForm" class="hidden">
+      <div class="form-group"><label>用户名</label><input type="text" id="regUsername"></div>
+      <div class="form-group"><label>邮箱</label><input type="email" id="regEmail"></div>
+      <div class="form-group"><label>密码</label><input type="password" id="regPassword"></div>
+      <div class="form-group"><label>身份</label><select id="regRole"><option value="buyer">买家</option><option value="seller">卖家</option></select></div>
+      <button class="btn btn-primary" onclick="doRegister()" style="width:100%">注册</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div id="detailModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('detailModal')">
+  <div class="modal" style="max-width:600px">
+    <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- Key Modal -->
+<div id="keyModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('keyModal')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('keyModal')">&times;</button>
+    <h2 style="color:var(--success)">购买成功</h2>
+    <div style="margin:12px 0;font-size:13px;color:var(--text2)">你的专属 API Key（请妥善保存，仅显示一次）：</div>
+    <div class="key-display">
+      <span id="keyValue"></span>
+      <button class="copy-btn" onclick="copyKey()">复制</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-top:8px">
+      使用方式：将此 Key 作为 Bearer Token 发送到 <code>/api/market/v1/chat/completions</code>
+    </div>
+    <button class="btn btn-primary" onclick="closeModal('keyModal')" style="width:100%;margin-top:16px">知道了</button>
+  </div>
+</div>
+
+<div id="rotateKeyModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('rotateKeyModal')">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('rotateKeyModal')">&times;</button>
+    <h3 style="margin-bottom:12px">更换上游 API Key</h3>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+      更换后，所有买家的代理 Key 将自动使用新 Key，无需重新购买。<br>
+      系统会自动验证新 Key 是否可用。
+    </div>
+    <div class="form-group"><label>新 API Key</label><input type="password" id="rotateNewKey" placeholder="sk-xxxxx"></div>
+    <div class="form-group"><label>新 Base URL（可选，留空保持原地址）</label><input type="text" id="rotateNewUrl" placeholder="https://api.example.com/v1"></div>
+    <div id="rotateKeyResult" style="display:none;font-size:12px;padding:10px;border-radius:8px;margin-bottom:10px"></div>
+    <button class="btn btn-primary" id="rotateKeyBtn" onclick="doRotateKey()" style="width:100%">验证并更换</button>
+  </div>
+</div>
+
+<script>
+var API='/api/market',token=localStorage.getItem('market_token'),currentUser=null,currentPage='home',cardSize=localStorage.getItem('card_size')||'large';
+var PROVIDER_ICONS={openrouter:'OR',groq:'GQ',cerebras:'CB',google:'GG',sambanova:'SN',mistral:'MI',nvidia:'NV',cohere:'CO',github:'GH'};
+var PROVIDER_CLS={openrouter:'provider-openrouter',groq:'provider-groq',cerebras:'provider-cerebras',google:'provider-google',sambanova:'provider-sambanova',mistral:'provider-mistral',nvidia:'provider-nvidia',cohere:'provider-cohere',github:'provider-github'};
+
+function getProvider(name){var n=(name||'').toLowerCase();for(var k in PROVIDER_ICONS)if(n.includes(k))return k;return'default';}
+function getProviderIcon(name){var k=getProvider(name);return PROVIDER_ICONS[k]||'AI';}
+function getProviderCls(name){var k=getProvider(name);return PROVIDER_CLS[k]||'provider-default';}
+
+function toast(msg,type){type=type||'success';var el=document.createElement('div');el.className='toast toast-'+type;el.textContent=msg;document.body.appendChild(el);setTimeout(function(){el.remove()},3500);}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function stars(n){n=Math.round(n||0);var s='';for(var i=0;i<5;i++)s+=i<n?'★':'☆';return s;}
+function fmtTime(ts){return new Date(ts).toLocaleString();}
+function fmtPrice(p){return p>0?p.toFixed(2):'免费';}
+
+async function api(path,opts){opts=opts||{};var h={'Content-Type':'application/json'};if(token)h['Authorization']='Bearer '+token;var r=await fetch(API+path,Object.assign({},opts,{headers:Object.assign({},h,opts.headers||{})}));var d=await r.json();if(!r.ok)throw new Error(d.error&&d.error.message||'Error');return d;}
+
+function showPage(name){
+  currentPage=name;
+  ['home','browse','sell','orders','wallet'].forEach(function(p){
+    var el=document.getElementById('page-'+p);if(el)el.classList.toggle('hidden',p!==name);
+  });
+  document.querySelectorAll('#mainNav button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-page')===name);});
+  if(name==='home')loadHome();
+  if(name==='browse')loadListings();
+  if(name==='sell'){if(!token){showAuthModal();return;}loadMyListings();}
+  if(name==='orders'){if(!token){showAuthModal();return;}loadOrders('buyer');}
+  if(name==='wallet'){if(!token){showAuthModal();return;}loadWallet();}
+}
+
+function toggleTheme(){var h=document.documentElement;var t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);localStorage.setItem('theme',t);document.getElementById('themeBtn').textContent=t==='dark'?'🌙':'☀️';}
+function toggleCardSize(){cardSize=cardSize==='large'?'compact':'large';localStorage.setItem('card_size',cardSize);applyCardSize();}function applyCardSize(){document.getElementById('sizeToggle').textContent=cardSize==='large'?'大':'小';document.querySelectorAll('.listing-grid').forEach(function(g){g.classList.toggle('compact',cardSize==='compact');});}
+function showModal(id){document.getElementById(id).classList.remove('hidden');}
+function closeModal(id){document.getElementById(id).classList.add('hidden');}
+function showAuthModal(){showModal('authModal');}
+function switchAuthTab(t){document.getElementById('loginForm').classList.toggle('hidden',t!=='login');document.getElementById('registerForm').classList.toggle('hidden',t!=='register');document.getElementById('authTabLogin').classList.toggle('btn-primary',t==='login');document.getElementById('authTabLogin').classList.toggle('btn-outline',t!=='login');document.getElementById('authTabRegister').classList.toggle('btn-primary',t==='register');document.getElementById('authTabRegister').classList.toggle('btn-outline',t!=='register');}
+
+async function doLogin(){try{var d=await api('/auth/login',{method:'POST',body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('登录成功');showPage(currentPage);}catch(e){toast(e.message,'error');}}
+async function doRegister(){try{var d=await api('/auth/register',{method:'POST',body:JSON.stringify({username:document.getElementById('regUsername').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPassword').value,role:document.getElementById('regRole').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('注册成功');showPage(currentPage);}catch(e){toast(e.message,'error');}}
+function logout(){token=null;currentUser=null;localStorage.removeItem('market_token');updateUI();showPage('home');toast('已退出');}
+async function checkAuth(){if(!token)return;try{currentUser=await api('/auth/profile');updateUI();}catch(e){token=null;localStorage.removeItem('market_token');}}
+
+function updateUI(){
+  var ok=!!currentUser;
+  document.getElementById('loginBtn').classList.toggle('hidden',ok);
+  document.getElementById('logoutBtn').classList.toggle('hidden',!ok);
+  document.getElementById('userDisplay').classList.toggle('hidden',!ok);
+  document.getElementById('balanceDisplay').classList.toggle('hidden',!ok);
+  document.getElementById('frozenDisplay').classList.toggle('hidden',!ok);
+  if(currentUser){
+    document.getElementById('userDisplay').textContent=currentUser.username+(currentUser.role==='seller'?' [卖家]':'');
+    document.getElementById('balanceDisplay').textContent='💰'+currentUser.balance.toFixed(2);
+    var fb=currentUser.frozenBalance||0;
+    document.getElementById('frozenDisplay').textContent=fb>0?'🔒'+fb.toFixed(2):'';
+  }
+}
+
+function renderListing(l,compact){
+  var pIcon=getProviderIcon(l.models&&l.models[0]||'');
+  var pCls=getProviderCls(l.models&&l.models[0]||'');
+  var priceText=fmtPrice(l.pricePerRequest);
+  var verified=l.verification&&l.verification.verified;
+  var modelsHtml='';
+  var ms=l.models||[];
+  var show=compact?3:5;
+  for(var i=0;i<Math.min(ms.length,show);i++){
+    var rate=l.modelRates&&l.modelRates[ms[i]];
+    modelsHtml+='<span class="model-tag">'+esc(ms[i])+(rate?'<span class="rate">x'+rate+'</span>':'')+'</span>';
+  }
+  if(ms.length>show)modelsHtml+='<span class="model-tag">+'+(ms.length-show)+'</span>';
+  var healthBadge=l.health&&l.health.healthy?'<span class="badge badge-green">正常</span>':'<span class="badge badge-red">异常</span>';
+  var verifyBadge=verified?'<span class="badge badge-verified">✓ 已验证</span>':'<span class="badge badge-yellow">待验证</span>';
+  var sharingBadge=l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">🔒 独占</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">👥 共享</span>';
+  var buyerInfo=l.sharingMode==='exclusive'?(l.buyerCount>0?'<span style="color:var(--error)">已售出</span>':'<span style="color:var(--success)">可购买</span>'):(l.buyerCount||0)+' 人在用';
+  return '<div class="card listing-card" onclick="showDetail(\''+l.id+'\')">'+
+    '<div class="card-header"><div class="icon-provider '+pCls+'">'+pIcon+'</div><div style="flex:1;min-width:0">'+
+    '<div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(l.description)+'</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-top:2px">卖家: '+esc(l.sellerName)+' <span style="color:var(--warning)">'+stars(l.rating)+'</span> '+l.rating+'</div>'+
+    '</div><span class="badge badge-green">'+priceText+'</span></div>'+
+    '<div>'+modelsHtml+'</div>'+
+    '<div class="card-footer"><div style="display:flex;gap:8px;align-items:center">'+healthBadge+verifyBadge+sharingBadge+'</div>'+
+    '<div style="font-size:11px;color:var(--text3)">库存 '+l.remainingQuota+'/'+l.totalQuota+' | 已售 '+(l.soldCount||0)+' | '+buyerInfo+'</div></div></div>';
+}
+
+async function loadHome(){
+  try{
+    var d=await api('/listings?limit=50');
+    var listings=d.data||[];
+    document.getElementById('statListings').textContent=listings.length;
+    var modelSet={};listings.forEach(function(l){(l.models||[]).forEach(function(m){modelSet[m]=1;});});
+    document.getElementById('statModels').textContent=Object.keys(modelSet).length;
+    document.getElementById('statTrades').textContent=listings.reduce(function(s,l){return s+(l.soldCount||0);},0);
+    var hot=listings.sort(function(a,b){return(b.soldCount||0)-(a.soldCount||0);}).slice(0,6);
+    var el=document.getElementById('hotListings');
+    el.className='listing-grid'+(cardSize==='compact'?' compact':'');
+    el.innerHTML=hot.map(function(l){return renderListing(l,cardSize==='compact');}).join('');
+  }catch(e){console.error(e);}
+}
+
+async function loadListings(){
+  var model=document.getElementById('searchInput').value;
+  var sort=document.getElementById('sortSelect').value;
+  try{
+    var d=await api('/listings?model='+encodeURIComponent(model)+'&sort='+sort);
+    var grid=document.getElementById('listingsGrid');
+    var empty=document.getElementById('listingsEmpty');
+    if(!d.data||!d.data.length){grid.innerHTML='';empty.classList.remove('hidden');return;}
+    empty.classList.add('hidden');
+    grid.className='listing-grid'+(cardSize==='compact'?' compact':'');
+    grid.innerHTML=d.data.map(function(l){return renderListing(l,cardSize==='compact');}).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+async function showDetail(id){
+  try{
+    var l=await api('/listings/'+id);
+    var pIcon=getProviderIcon(l.models&&l.models[0]||'');
+    var pCls=getProviderCls(l.models&&l.models[0]||'');
+    var verified=l.verification&&l.verification.verified;
+    var modelsHtml='';
+    var ms=l.models||[];
+    for(var i=0;i<ms.length;i++){
+      var rate=l.modelRates&&l.modelRates[ms[i]];
+      var priceWithRate=((l.pricePerRequest||0)*(rate||1));
+      modelsHtml+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">'+
+        '<span class="model-tag" style="margin:0">'+esc(ms[i])+'</span>'+
+        '<div style="display:flex;gap:12px;align-items:center;font-size:12px">'+
+        (rate?'<span style="color:var(--warning)">倍率 x'+rate+'</span>':'')+
+        '<span style="color:var(--success);font-weight:700">'+fmtPrice(priceWithRate)+'/次</span>'+
+        '</div></div>';
+    }
+    var reviewsHtml='';
+    if(l.reviews&&l.reviews.length){
+      reviewsHtml='<h3 style="margin-top:16px;font-size:14px">评价</h3>';
+      for(var j=0;j<l.reviews.length;j++){var r=l.reviews[j];reviewsHtml+='<div class="card" style="padding:10px;margin-top:6px"><span style="color:var(--warning)">'+stars(r.rating)+'</span> '+esc(r.comment||'')+'</div>';}
+    }
+    document.getElementById('detailContent').innerHTML=
+      '<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">'+
+      '<div class="icon-provider '+pCls+'" style="width:40px;height:40px;font-size:18px">'+pIcon+'</div>'+
+      '<div><h2 style="font-size:16px">'+esc(l.description)+'</h2>'+
+      '<div style="font-size:12px;color:var(--text3)">卖家: '+esc(l.sellerName)+' <span style="color:var(--warning)">'+stars(l.rating)+'</span></div></div></div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">'+
+      '<span class="badge badge-green">'+fmtPrice(l.pricePerRequest)+'/次</span>'+
+      (l.pricePerToken?'<span class="badge badge-blue">'+l.pricePerToken+'/token</span>':'')+
+      '<span class="badge badge-yellow">库存 '+l.remainingQuota+'/'+l.totalQuota+'</span>'+
+      (verified?'<span class="badge badge-verified">✓ 模型已验证</span>':'<span class="badge badge-yellow">待验证</span>')+
+      (l.health&&l.health.healthy?'<span class="badge badge-green">健康</span>':'<span class="badge badge-red">异常</span>')+
+      (l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">🔒 独占模式</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">👥 共享模式</span>')+
+      '</div>'+
+      '<div class="stat-row"><span>已售</span><span>'+(l.soldCount||0)+' 次</span></div>'+
+      '<div class="stat-row"><span>在用人数</span><span>'+(l.buyerCount||0)+' 人'+(l.sharingMode==='exclusive'&&l.buyerCount>0?' <span style="color:var(--error)">（独占已售出）</span>':'')+'</span></div>'+
+      '<div class="stat-row"><span>延迟</span><span>'+(l.health&&l.health.latency||'-')+' ms</span></div>'+
+      '<h3 style="margin:16px 0 8px;font-size:14px">模型列表 & 倍率</h3>'+
+      modelsHtml+
+      (l.sharingMode==='exclusive'&&l.buyerCount>0?
+        '<button class="btn btn-secondary" disabled style="width:100%;margin-top:12px">已被他人独占购买</button>':
+        '<div style="margin-top:16px"><label style="font-size:12px;color:var(--text2)">购买数量（请求数）</label>'+
+        '<input type="number" id="buyAmount" value="100" min="1" max="'+l.remainingQuota+'" style="margin-top:4px"></div>'+
+        '<button class="btn btn-primary" onclick="buyListing(\''+l.id+'\')" style="width:100%;margin-top:12px">购买（自动验证 Key）</button>'
+      )+
+      reviewsHtml;
+    showModal('detailModal');
+  }catch(e){toast(e.message,'error');}
+}
+
+async function buyListing(id){
+  if(!token){showAuthModal();return;}
+  var amount=parseInt(document.getElementById('buyAmount').value)||1;
+  try{
+    var d=await api('/orders',{method:'POST',body:JSON.stringify({listingId:id,amount:amount})});
+    document.getElementById('keyValue').textContent=d.apiKey;
+    showModal('keyModal');
+    await checkAuth();
+    closeModal('detailModal');
+  }catch(e){toast(e.message,'error');}
+}
+
+function copyKey(){
+  var k=document.getElementById('keyValue').textContent;
+  navigator.clipboard.writeText(k).then(function(){toast('已复制到剪贴板');}).catch(function(){toast('复制失败，请手动复制','error');});
+}
+
+var rotatingListingId=null;
+function showRotateKey(listingId){
+  rotatingListingId=listingId;
+  document.getElementById('rotateNewKey').value='';
+  document.getElementById('rotateNewUrl').value='';
+  document.getElementById('rotateKeyResult').style.display='none';
+  document.getElementById('rotateKeyBtn').disabled=false;
+  document.getElementById('rotateKeyBtn').textContent='验证并更换';
+  showModal('rotateKeyModal');
+}
+
+async function doRotateKey(){
+  if(!rotatingListingId)return;
+  var newKey=document.getElementById('rotateNewKey').value.trim();
+  if(!newKey){toast('请输入新 Key','error');return;}
+  var btn=document.getElementById('rotateKeyBtn');
+  var result=document.getElementById('rotateKeyResult');
+  btn.disabled=true;btn.textContent='验证中...';
+  try{
+    var body={newApiKey:newKey};
+    var newUrl=document.getElementById('rotateNewUrl').value.trim();
+    if(newUrl)body.newBaseUrl=newUrl;
+    var d=await api('/listings/'+rotatingListingId+'/rotate-key',{method:'POST',body:JSON.stringify(body)});
+    result.style.display='block';
+    result.style.background='rgba(16,185,129,0.1)';
+    result.style.color='var(--success)';
+    result.innerHTML='✅ Key 更换成功！'+(d.buyerCount>0?d.buyerCount+' 个买家将自动使用新 Key':'')+
+      (d.verification?('<br>模型验证: '+(d.verification.valid?'全部通过':'部分缺失 - '+d.verification.missing.join(', '))):'');
+    btn.textContent='已完成';
+    loadMyListings();
+  }catch(e){
+    result.style.display='block';
+    result.style.background='rgba(239,68,68,0.1)';
+    result.style.color='var(--error)';
+    result.innerHTML='❌ '+e.message;
+    btn.disabled=false;btn.textContent='重试';
+  }
+}
+
+async function createListing(){
+  if(!token){showAuthModal();return;}
+  try{
+    // Use probed models if available, otherwise use manual input
+    var models=[];
+    var rates={};
+    var probed=document.querySelectorAll('.probe-model-check:checked');
+    if(probed.length>0){
+      probed.forEach(function(cb){
+        models.push(cb.dataset.modelId);
+        var rateInput=document.querySelector('.probe-rate[data-model="'+cb.dataset.modelId+'"]');
+        if(rateInput&&rateInput.value)rates[cb.dataset.modelId]=parseFloat(rateInput.value)||1;
+      });
+    }else{
+      models=document.getElementById('sellModels').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+    }
+    var ratesStr=document.getElementById('sellModelRates').value.trim();
+    if(ratesStr&&!Object.keys(rates).length){try{rates=JSON.parse(ratesStr);}catch(e){toast('模型倍率格式错误，需要JSON','error');return;}}
+    if(!models.length){toast('请至少选择一个模型','error');return;}
+    var sharingMode=document.querySelector('input[name="sharingMode"]:checked');
+    var d=await api('/listings',{method:'POST',body:JSON.stringify({
+      baseUrl:document.getElementById('sellBaseUrl').value,
+      apiKey:document.getElementById('sellApiKey').value,
+      description:document.getElementById('sellDescription').value,
+      models:models,modelRates:rates,
+      pricePerRequest:parseFloat(document.getElementById('sellPriceReq').value)||0,
+      pricePerToken:parseFloat(document.getElementById('sellPriceToken').value)||0,
+      totalQuota:parseInt(document.getElementById('sellQuota').value)||10000,
+      sharingMode:sharingMode?sharingMode.value:'shared'
+    })});
+    toast('上架成功！验证通过 '+(d.verification?d.verification.details.verified+'/'+d.verification.details.total+' 个模型':''));
+    // Reset probe state
+    document.getElementById('probeResult').style.display='none';
+    document.getElementById('sellModels').value='';
+    loadMyListings();
+  }catch(e){toast(e.message,'error');}
+}
+
+var probedModels=[];
+async function probeModels(){
+  if(!token){showAuthModal();return;}
+  var baseUrl=document.getElementById('sellBaseUrl').value.trim();
+  var apiKey=document.getElementById('sellApiKey').value.trim();
+  if(!baseUrl||!apiKey){toast('请先填写 Base URL 和 API Key','error');return;}
+  var btn=document.getElementById('probeBtn');
+  btn.disabled=true;btn.textContent='🔍 探测中...';
+  try{
+    var d=await api('/probe-models',{method:'POST',body:JSON.stringify({baseUrl:baseUrl,apiKey:apiKey})});
+    probedModels=d.models||[];
+    document.getElementById('probeCount').textContent=probedModels.length;
+    document.getElementById('selectedCount').textContent=probedModels.length;
+    var list=document.getElementById('probeModelsList');
+    list.innerHTML=probedModels.map(function(m){
+      var name=m.id+(m.owned_by?' ('+m.owned_by+')':'');
+      return'<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px">'+
+        '<input type="checkbox" class="probe-model-check" data-model-id="'+m.id+'" checked onchange="updateSelectedCount()" style="flex-shrink:0">'+
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+m.id+'">'+name+'</span>'+
+        '<span style="font-size:10px;color:var(--text3);white-space:nowrap">倍率</span>'+
+        '<input type="number" class="probe-rate" data-model="'+m.id+'" value="1" step="0.1" min="0" style="width:50px;padding:3px 6px;font-size:11px;background:var(--primary-bg);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);text-align:center">'+
+      '</div>';
+    }).join('');
+    document.getElementById('probeResult').style.display='block';
+    document.getElementById('manualModelsGroup').style.display='none';
+    btn.textContent='✅ 探测完成（'+probedModels.length+' 个模型）';
+    btn.disabled=false;
+  }catch(e){
+    toast('探测失败: '+e.message,'error');
+    btn.textContent='🔍 探测可用模型';
+    btn.disabled=false;
+  }
+}
+
+function selectAllModels(select){
+  document.querySelectorAll('.probe-model-check').forEach(function(cb){cb.checked=select;});
+  updateSelectedCount();
+}
+
+function updateSelectedCount(){
+  var count=document.querySelectorAll('.probe-model-check:checked').length;
+  document.getElementById('selectedCount').textContent=count;
+}
+
+async function loadMyListings(){
+  if(!token)return;
+  try{
+    var d=await api('/listings?limit=50');
+    var el=document.getElementById('myListings');
+    var mine=(d.data||[]).filter(function(l){return l.sellerName===(currentUser&&currentUser.username);});
+    if(!mine.length){el.innerHTML='<div class="empty">你还没有上架商品</div>';return;}
+    el.innerHTML=mine.map(function(l){
+      var vBadge=l.verification&&l.verification.verified?'<span class="badge badge-verified">✓ 已验证</span>':'<span class="badge badge-yellow">待验证</span>';
+      var sBadge=l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">🔒 独占</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">👥 共享</span>';
+      var healthDot=l.health&&l.health.healthy?'<span style="color:var(--success)">●</span>':'<span style="color:var(--error)">●</span>';
+      return'<div class="card" style="margin-bottom:8px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:600;font-size:13px">'+esc(l.description)+'</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:4px">'+healthDot+' 库存 '+l.remainingQuota+'/'+l.totalQuota+' | 已售 '+(l.soldCount||0)+' | '+(l.buyerCount||0)+' 人在用 | '+fmtPrice(l.pricePerRequest)+'/次</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+vBadge+sBadge+
+        '<span class="badge '+(l.status==='active'?'badge-green':'badge-red')+'">'+l.status+'</span>'+
+        '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();showRotateKey(\''+l.id+'\')">更换 Key</button>'+
+        '</div></div></div>';
+    }).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+async function loadOrders(role){
+  if(!token){showAuthModal();return;}
+  document.getElementById('tabBuyer').classList.toggle('btn-primary',role==='buyer');document.getElementById('tabBuyer').classList.toggle('btn-outline',role!=='buyer');
+  document.getElementById('tabSeller').classList.toggle('btn-primary',role==='seller');document.getElementById('tabSeller').classList.toggle('btn-outline',role!=='seller');
+  try{
+    var d=await api('/orders?role='+role);
+    var el=document.getElementById('ordersList');
+    if(!d.data||!d.data.length){el.innerHTML='<div class="empty">暂无订单</div>';return;}
+    el.innerHTML=d.data.map(function(o){
+      var desc=(o.listingInfo&&o.listingInfo.description)||o.listingId;
+      var statusCls=o.status==='completed'?'escrow-completed':o.status==='frozen'?'escrow-frozen':'escrow-refunded';
+      var statusIcon=o.status==='completed'?'✅':o.status==='frozen'?'🔒':'↩️';
+      var statusText=o.status==='completed'?'已完成':o.status==='frozen'?'资金冻结中':'已退款';
+      var actions='';
+      if(o.status==='frozen'&&role==='buyer'){
+        actions='<button class="btn btn-sm btn-primary" onclick="confirmOrder(\''+o.id+'\')">确认收货</button>'+
+                '<button class="btn btn-sm btn-outline" onclick="disputeOrder(\''+o.id+'\')" style="margin-left:6px">申诉退款</button>';
+      }
+      return'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div><strong style="font-size:13px">'+esc(desc)+'</strong>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:4px">数量: '+o.amount+' | '+o.totalPrice+' 币 | '+fmtTime(o.createdAt)+'</div></div>'+
+        '<div class="escrow-status '+statusCls+'">'+statusIcon+' '+statusText+'</div></div>'+
+        (actions?'<div style="margin-top:10px">'+actions+'</div>':'')+'</div>';
+    }).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+async function confirmOrder(id){try{await api('/orders/'+id+'/confirm',{method:'POST'});toast('已确认收货，资金已转给卖家');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
+async function disputeOrder(id){var reason=prompt('请输入申诉原因：');if(!reason)return;try{await api('/orders/'+id+'/dispute',{method:'POST',body:JSON.stringify({reason:reason})});toast('申诉成功，资金已退回');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
+
+async function loadWallet(){
+  if(!token)return;
+  try{
+    var bal=await api('/wallet/balance');
+    document.getElementById('walletBalance').textContent=bal.balance.toFixed(2);
+    document.getElementById('walletFrozen').textContent=(bal.frozenBalance||0).toFixed(2);
+    document.getElementById('walletSpending').textContent=(bal.totalSpending||0).toFixed(2);
+    document.getElementById('walletEarnings').textContent=(bal.totalEarnings||0).toFixed(2);
+    var txns=await api('/wallet/transactions');
+    var el=document.getElementById('transactionsList');
+    if(!txns.data||!txns.data.length){el.innerHTML='<div class="empty">暂无交易记录</div>';return;}
+    var sorted=txns.data.sort(function(a,b){return b.createdAt-a.createdAt;});
+    el.innerHTML=sorted.map(function(t){
+      var color=t.amount>=0?'var(--success)':'var(--danger)';
+      var sign=t.amount>=0?'+':'';
+      var icon=t.type==='freeze'?'🔒':t.type==='refund'?'↩️':t.type==='earning'?'💰':t.type==='topup'?'🎁':'🛒';
+      return'<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px">'+
+        '<div><div style="font-size:13px">'+icon+' '+esc(t.description)+'</div>'+
+        '<div style="font-size:11px;color:var(--text3)">'+fmtTime(t.createdAt)+'</div></div>'+
+        '<div style="font-weight:700;color:'+color+'">'+sign+t.amount.toFixed(2)+'</div></div>';
+    }).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+// Init
+var savedTheme=localStorage.getItem('theme')||'dark';
+document.documentElement.setAttribute('data-theme',savedTheme);
+document.getElementById('themeBtn').textContent=savedTheme==='dark'?'🌙':'☀️';
+applyCardSize();
+checkAuth();
+showPage('home');
+</script>
+<script src="/fixes/marketplace-patch.js" defer></script>
+</body>
+</html>

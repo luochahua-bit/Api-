@@ -30,11 +30,9 @@
       color: var(--text-primary);
       min-height: 100vh;
     }
-    /* Animated background */
     body::before {
       content: '';
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background:
         radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%),
         radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%),
@@ -42,22 +40,21 @@
       pointer-events: none; z-index: 0;
     }
     .header {
-      background: var(--glass);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 32px;
-      display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 100;
-      backdrop-filter: blur(20px);
+      background: var(--glass); border-bottom: 1px solid var(--border);
+      padding: 14px 32px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px);
     }
     .header-left { display: flex; align-items: center; gap: 14px; }
     .logo {
-      width: 38px; height: 38px;
+      padding: 8px 16px;
       background: linear-gradient(135deg, var(--accent), var(--purple), var(--cyan));
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; font-weight: 800; color: white;
-      box-shadow: 0 0 20px rgba(59,130,246,0.3);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: white;
+      box-shadow: 0 2px 12px rgba(59,130,246,0.3);
+      text-decoration: none; cursor: pointer; border: none;
+      transition: all 0.2s;
     }
+    .logo:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(59,130,246,0.4); }
     .header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
     .header h1 span { background: linear-gradient(135deg, var(--accent), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .header-right { display: flex; align-items: center; gap: 10px; }
@@ -73,7 +70,6 @@
     }
     @keyframes pulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(16,185,129,0.4); } 50% { opacity:0.8; box-shadow:0 0 0 6px rgba(16,185,129,0); } }
     .main { padding: 20px 32px; max-width: 1440px; margin: 0 auto; position: relative; z-index: 1; }
-    /* Hero Banner */
     .hero {
       background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.1) 40%, rgba(6,182,212,0.08) 100%);
       border: 1px solid rgba(59,130,246,0.15);
@@ -100,8 +96,6 @@
     .hero-stat { text-align: center; padding: 12px 20px; background: rgba(0,0,0,0.2); border-radius: 14px; min-width: 90px; }
     .hero-stat-val { font-size: 26px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .hero-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
-    /* Stats Grid */
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
     .stat-card {
       background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
       padding: 18px 20px; transition: all 0.25s; position: relative; overflow: hidden;
@@ -118,7 +112,6 @@
     .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
     .stat-value.gradient { background: linear-gradient(135deg, var(--text-primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .stat-sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
-    /* Tabs */
     .tabs {
       display: flex; gap: 3px; padding: 4px; background: var(--bg-secondary);
       border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border);
@@ -132,7 +125,6 @@
     }
     .tab.active { background: var(--accent); color: white; box-shadow: 0 2px 10px rgba(59,130,246,0.3); }
     .tab:hover:not(.active) { color: var(--text-primary); background: var(--bg-hover); }
-    /* Section */
     .section {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 16px; margin-bottom: 16px; overflow: hidden;
@@ -144,8 +136,11 @@
     .section-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
     .section-title .count { font-size: 11px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 8px; border-radius: 10px; }
     .section-body { padding: 16px 20px; }
-    /* Provider Cards */
     .providers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+    .providers-grid.list-view { grid-template-columns: 1fr; }
+    .providers-grid.list-view .provider-card { flex-direction: row; }
+    .providers-grid.list-view .provider-icon { width: 36px; height: 36px; font-size: 14px; }
+    .providers-grid.list-view .provider-url { max-width: 300px; }
     .provider-card {
       background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
       padding: 14px 16px; display: flex; align-items: center; gap: 12px;
@@ -169,7 +164,6 @@
     .provider-status.active { background: rgba(16,185,129,0.12); color: var(--success); }
     .provider-status.blocked { background: rgba(239,68,68,0.12); color: var(--error); }
     .provider-status.unhealthy { background: rgba(245,158,11,0.12); color: var(--warning); }
-    /* Model Cards */
     .models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
     .model-card {
       display: flex; align-items: center; gap: 8px; padding: 10px 14px;
@@ -181,16 +175,13 @@
     .model-paid { background: rgba(245,158,11,0.15); color: var(--warning); font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 700; }
     .model-provider-tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(139,92,246,0.12); color: var(--purple); margin-left: auto; }
     .model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .search-bar {
-      display: flex; gap: 8px; margin-bottom: 12px;
-    }
+    .search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
     .search-bar input {
       flex: 1; background: var(--bg-primary); border: 1px solid var(--border);
       border-radius: 8px; color: var(--text-primary); padding: 8px 12px;
       font-size: 12px; outline: none;
     }
     .search-bar input:focus { border-color: var(--accent); }
-    /* Logs Table */
     .logs-table { width: 100%; border-collapse: collapse; }
     .logs-table th {
       text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700;
@@ -204,7 +195,6 @@
     .log-status.error { background: rgba(239,68,68,0.12); color: var(--error); }
     .log-status.streaming { background: rgba(139,92,246,0.12); color: var(--purple); }
     .log-provider { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; background: rgba(59,130,246,0.12); color: var(--accent); }
-    /* Playground */
     .playground { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .playground-input, .playground-output {
       background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
@@ -236,13 +226,14 @@
     .btn-danger:hover { background: rgba(239,68,68,0.2); }
     .btn-success { background: rgba(16,185,129,0.12); color: var(--success); }
     .btn-sm { padding: 5px 10px; font-size: 11px; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--text-primary); }
     .output-area {
       background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;
       padding: 10px; min-height: 100px; font-family: 'JetBrains Mono','Fira Code',monospace;
       font-size: 12px; white-space: pre-wrap; word-break: break-all;
       max-height: 350px; overflow-y: auto;
     }
-    /* Guide */
     .guide-card {
       background: var(--bg-secondary); border: 1px solid var(--border);
       border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
@@ -252,7 +243,6 @@
     .guide-card a { color: var(--accent); text-decoration: none; }
     .guide-card a:hover { text-decoration: underline; }
     .guide-card code { background: var(--bg-primary); padding: 2px 5px; border-radius: 4px; font-size: 11px; }
-    /* Admin */
     .admin-login {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 16px; padding: 24px; max-width: 380px; margin: 40px auto; text-align: center;
@@ -276,7 +266,6 @@
       font-size: 11px; outline: none;
     }
     .filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
-    /* Modal */
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center;
@@ -296,7 +285,6 @@
     }
     .modal input:focus, .modal select:focus { border-color: var(--accent); }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-    /* Toast */
     .toast {
       position: fixed; bottom: 20px; right: 20px;
       padding: 10px 18px; border-radius: 10px;
@@ -308,31 +296,97 @@
     .toast.error { background: var(--error); color: white; }
     .toast.info { background: var(--accent); color: white; }
     @keyframes slideIn { from { transform: translateY(20px); opacity:0; } to { transform: translateY(0); opacity:1; } }
-    /* Responsive */
+
+    /* User Dashboard Specific */
+    .user-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+    .user-stat {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; text-align: center; transition: all 0.2s;
+    }
+    .user-stat:hover { border-color: var(--accent); }
+    .user-stat-icon { font-size: 20px; margin-bottom: 6px; }
+    .user-stat-val { font-size: 22px; font-weight: 800; }
+    .user-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+    .chart-container {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; margin-bottom: 14px;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 10px; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
+    .bar {
+      width: 100%; min-height: 4px; border-radius: 4px 4px 0 0;
+      background: linear-gradient(180deg, var(--accent), var(--purple));
+      transition: height 0.5s ease; position: relative;
+    }
+    .bar:hover { opacity: 0.85; }
+    .bar-label { font-size: 9px; color: var(--text-secondary); margin-top: 6px; text-align: center; }
+    .bar-value { font-size: 9px; color: var(--text-primary); margin-bottom: 2px; font-weight: 600; }
+    .line-chart { position: relative; height: 100px; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); margin: 10px 0; }
+    .line-chart svg { width: 100%; height: 100%; }
+    .suggestion-card {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .suggestion-card:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .suggestion-icon { font-size: 18px; }
+    .suggestion-text { font-size: 12px; }
+    .suggestion-text strong { display: block; margin-bottom: 2px; }
+    .suggestion-text span { color: var(--text-secondary); font-size: 11px; }
+    .perf-bar {
+      height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;
+      margin-top: 6px;
+    }
+    .perf-bar-fill {
+      height: 100%; border-radius: 3px; transition: width 0.6s ease;
+    }
+    .api-key-row {
+      display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+      background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 6px; font-size: 12px;
+    }
+    .api-key-row code { flex: 1; font-family: 'JetBrains Mono','Fira Code',monospace; color: var(--cyan); font-size: 11px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
     @media (max-width: 768px) {
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .user-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .two-col { grid-template-columns: 1fr; }
       .playground { grid-template-columns: 1fr; }
       .main { padding: 12px; }
       .header { padding: 10px 14px; }
       .hero-content { flex-direction: column; }
       .hero-stats { width: 100%; justify-content: space-around; }
     }
+    @media (max-width: 1200px) {
+      .user-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
   </style>
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="LLM API 中转站 - 多供应商负载均衡网关，支持 OpenRouter、Groq、Cerebras 等免费模型">
+  <link rel="manifest" href="/fixes/manifest.json">
+  <link rel="icon" href="/fixes/icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/fixes/dashboard-styles.css">
+  <link rel="preconnect" href="https://openrouter.ai">
+  <link rel="dns-prefetch" href="https://api.groq.com">
 </head>
 <body>
   <div class="header">
     <div class="header-left">
-      <div class="logo">AI</div>
+      <a class="logo" href="/market" title="进入市场">🛒 市场</a>
       <h1>LLM <span>API 中转站</span></h1>
     </div>
     <div class="header-right">
+      <a href="/market" class="btn btn-outline btn-sm" style="text-decoration:none">首页</a>
       <div class="status-badge"><div class="status-dot"></div><span id="statusText">运行中</span></div>
       <span style="color:var(--text-secondary);font-size:12px" id="uptimeText">--</span>
-      <button class="btn btn-secondary btn-sm" onclick="toggleAdmin()">管理</button>
     </div>
   </div>
 
@@ -357,63 +411,240 @@
       </div>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(59,130,246,0.12);color:var(--accent)">📊</div>
-        <div class="stat-label">总请求数</div>
-        <div class="stat-value gradient" id="statRequests">0</div>
-        <div class="stat-sub">自服务启动累计</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(139,92,246,0.12);color:var(--purple)">🔤</div>
-        <div class="stat-label">已处理 Token</div>
-        <div class="stat-value gradient" id="statTokens">0</div>
-        <div class="stat-sub">提示 + 补全</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.12);color:var(--error)">⚠️</div>
-        <div class="stat-label">错误率</div>
-        <div class="stat-value gradient" id="statErrors">0%</div>
-        <div class="stat-sub" id="errorCount">0 次错误</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(16,185,129,0.12);color:var(--success)">✅</div>
-        <div class="stat-label">活跃提供商</div>
-        <div class="stat-value gradient" id="statProviders">0</div>
-        <div class="stat-sub" id="providerSub">--</div>
-      </div>
-    </div>
-
     <div class="tabs">
-      <button class="tab active" onclick="showTab('providers',this)">提供商</button>
-      <button class="tab" onclick="showTab('models',this)">模型</button>
+      <button class="tab active" onclick="showTab('user',this)" id="tabUserBtn">管理面板</button>
+      <button class="tab" onclick="showTab('providers',this)">提供商</button>
       <button class="tab" onclick="showTab('logs',this)">请求日志</button>
       <button class="tab" onclick="showTab('playground',this)">测试台</button>
-      <button class="tab" onclick="showTab('admin',this)" id="tabAdminBtn">管理面板</button>
       <button class="tab" onclick="showTab('guide',this)">配置指南</button>
     </div>
 
-    <!-- Providers -->
-    <div class="section" id="tab-providers">
-      <div class="section-header"><div class="section-title">提供商状态 <span class="count" id="providerCount">0</span></div></div>
-      <div class="section-body"><div class="providers-grid" id="providersGrid"></div></div>
+    <!-- User Center -->
+    <div class="section" id="tab-user">
+      <div class="section-body">
+        <div id="userLogin">
+          <div class="admin-login">
+            <h3>用户登录</h3>
+            <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px">登录市场账号查看余额、消费记录和性能数据。</p>
+            <input type="text" id="userLoginUsername" placeholder="用户名" onkeydown="if(event.key==='Enter')userDoLogin()">
+            <input type="password" id="userLoginPassword" placeholder="密码" onkeydown="if(event.key==='Enter')userDoLogin()">
+            <button class="btn btn-primary" onclick="userDoLogin()" style="width:100%;margin-bottom:8px">登录</button>
+            <p style="font-size:11px;color:var(--text-secondary)">演示账号: <code>demo_buyer</code> / <code>demo123</code></p>
+          </div>
+        </div>
+        <div id="userContent" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:white" id="userAvatar">?</div>
+              <div>
+                <div style="font-size:14px;font-weight:700" id="userDisplayName">--</div>
+                <div style="font-size:11px;color:var(--text-secondary)" id="userRole">--</div>
+              </div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="userLogout()">退出登录</button>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="user-grid" style="grid-template-columns: repeat(5, 1fr);">
+            <div class="user-stat">
+              <div class="user-stat-icon">💰</div>
+              <div class="user-stat-val" style="color:var(--success)" id="uBalance">0</div>
+              <div class="user-stat-label">账户余额</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">🧊</div>
+              <div class="user-stat-val" style="color:var(--warning)" id="uFrozen">0</div>
+              <div class="user-stat-label">冻结资金</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">📊</div>
+              <div class="user-stat-val" style="color:var(--accent)" id="uTotalReqs">0</div>
+              <div class="user-stat-label">总请求数</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">⚠️</div>
+              <div class="user-stat-val" style="color:var(--error)" id="uErrorRate">0%</div>
+              <div class="user-stat-label">错误率</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">✅</div>
+              <div class="user-stat-val" style="color:var(--success)" id="uActiveProviders">0</div>
+              <div class="user-stat-label">活跃提供商</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">📈</div>
+              <div class="user-stat-val" style="color:var(--accent)" id="uTodayReq">0</div>
+              <div class="user-stat-label">今日请求</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">💸</div>
+              <div class="user-stat-val" style="color:var(--pink)" id="uTodaySpend">0</div>
+              <div class="user-stat-label">今日消费</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">🔤</div>
+              <div class="user-stat-val" style="color:var(--purple)" id="uTodayTokens">0</div>
+              <div class="user-stat-label">今日 Token</div>
+            </div>
+            <div class="user-stat">
+              <div class="user-stat-icon">📦</div>
+              <div class="user-stat-val" style="color:var(--cyan)" id="uTotalTokens">0</div>
+              <div class="user-stat-label">累计 Token</div>
+            </div>
+          </div>
+
+          <!-- Performance & Charts -->
+          <div class="two-col">
+            <div>
+              <!-- Performance Metrics -->
+              <div class="chart-container">
+                <div class="chart-title">⚡ 性能指标</div>
+                <div style="margin-bottom:10px">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+                    <span>成功率</span>
+                    <span id="perfSuccessRate" style="color:var(--success)">--</span>
+                  </div>
+                  <div class="perf-bar"><div class="perf-bar-fill" id="perfSuccessBar" style="background:var(--success);width:0%"></div></div>
+                </div>
+                <div style="margin-bottom:10px">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+                    <span>平均响应时间</span>
+                    <span id="perfAvgLatency" style="color:var(--cyan)">--</span>
+                  </div>
+                  <div class="perf-bar"><div class="perf-bar-fill" id="perfLatencyBar" style="background:var(--cyan);width:0%"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+                    <span>提供商健康度</span>
+                    <span id="perfProviderHealth" style="color:var(--accent)">--</span>
+                  </div>
+                  <div class="perf-bar"><div class="perf-bar-fill" id="perfHealthBar" style="background:var(--accent);width:0%"></div></div>
+                </div>
+              </div>
+
+              <!-- Model Distribution -->
+              <div class="chart-container">
+                <div class="chart-title">📊 模型分布</div>
+                <div class="bar-chart" id="modelDistChart">
+                  <div style="color:var(--text-secondary);font-size:11px;width:100%;text-align:center;padding:40px 0">暂无数据</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <!-- Token Usage Trends -->
+              <div class="chart-container">
+                <div class="chart-title">📈 Token 使用趋势</div>
+                <div id="tokenTrendChart" style="height:120px;display:flex;align-items:flex-end;gap:4px;padding:10px 0">
+                  <div style="color:var(--text-secondary);font-size:11px;width:100%;text-align:center;padding:40px 0">暂无数据</div>
+                </div>
+              </div>
+
+              <!-- Suggested Actions -->
+              <div class="chart-container">
+                <div class="chart-title">💡 建议操作</div>
+                <div id="suggestions">
+                  <div class="suggestion-card" onclick="showTab('playground',document.querySelectorAll('.tab')[4])">
+                    <div class="suggestion-icon">🧪</div>
+                    <div class="suggestion-text">
+                      <strong>测试 API</strong>
+                      <span>在测试台中试用免费模型</span>
+                    </div>
+                  </div>
+                  <div class="suggestion-card" onclick="window.location='/market'">
+                    <div class="suggestion-icon">🛒</div>
+                    <div class="suggestion-text">
+                      <strong>浏览市场</strong>
+                      <span>发现更多供应商和模型</span>
+                    </div>
+                  </div>
+                  <div class="suggestion-card" onclick="showTab('guide',document.querySelectorAll('.tab')[6])">
+                    <div class="suggestion-icon">📖</div>
+                    <div class="suggestion-text">
+                      <strong>配置指南</strong>
+                      <span>获取免费 API 密钥</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- API Keys -->
+          <div class="chart-container">
+            <div class="chart-title">🔑 我的 API 密钥</div>
+            <div id="userApiKeys">
+              <p style="color:var(--text-secondary);font-size:11px">暂无购买的 API 密钥。<a href="/market" style="color:var(--accent)">去市场购买</a></p>
+            </div>
+          </div>
+
+          <!-- Recent Orders -->
+          <div class="chart-container">
+            <div class="chart-title">📋 最近订单</div>
+            <div id="userOrders">
+              <p style="color:var(--text-secondary);font-size:11px">暂无订单记录</p>
+            </div>
+          </div>
+
+          <!-- Admin Section (merged into user panel) -->
+          <div class="chart-container" id="adminSection">
+            <div class="chart-title">🔧 管理员设置</div>
+            <div id="adminLogin">
+              <div style="text-align:center;padding:16px">
+                <p style="color:var(--text-secondary);font-size:12px;margin-bottom:10px">输入管理员密码以管理提供商和 API 密钥</p>
+                <div style="display:flex;gap:8px;max-width:300px;margin:0 auto">
+                  <input type="password" id="adminPassword" placeholder="管理员密码" style="flex:1;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);padding:8px 10px;font-size:12px;outline:none" onkeydown="if(event.key==='Enter')adminLogin()">
+                  <button class="btn btn-primary btn-sm" onclick="adminLogin()">登录</button>
+                </div>
+              </div>
+            </div>
+            <div id="adminContent" style="display:none">
+              <div style="display:flex;gap:6px;margin-bottom:12px">
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminProviders')">提供商</button>
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
+                <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出</button>
+              </div>
+              <div id="adminProviders">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="font-size:13px">提供商管理</h4>
+                  <button class="btn btn-primary btn-sm" onclick="showAddProviderModal()">+ 添加提供商</button>
+                </div>
+                <div id="adminProviderList"></div>
+              </div>
+              <div id="adminKeys" style="display:none">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <h4 style="font-size:13px">API 密钥管理</h4>
+                  <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ 创建密钥</button>
+                </div>
+                <div id="adminKeyList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Models -->
-    <div class="section" id="tab-models" style="display:none">
+    <!-- Providers -->
+    <div class="section" id="tab-providers" style="display:none">
       <div class="section-header">
-        <div class="section-title">可用模型 <span class="count" id="modelCount">0</span></div>
+        <div class="section-title">提供商 & 模型 <span class="count" id="providerCount">0</span></div>
+        <div style="display:flex;gap:4px;align-items:center">
+          <input type="text" id="modelSearch" placeholder="搜索模型..." oninput="filterModels()" style="width:160px;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:11px;outline:none">
+          <select id="modelFilter" onchange="filterModels()" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:11px;outline:none">
+            <option value="">全部</option>
+            <option value="free">免费</option>
+            <option value="paid">付费</option>
+          </select>
+          <button class="btn btn-sm btn-secondary" id="layoutToggle" onclick="toggleProviderLayout()" title="切换排版">▦ 网格</button>
+          <button class="btn btn-sm" id="freeFilterBtn" onclick="toggleFreeFilter()" style="background:rgba(16,185,129,0.1);color:var(--success);border:1px solid rgba(16,185,129,0.2);font-size:11px">🎁 免费</button>
+        </div>
       </div>
       <div class="section-body">
-        <div class="search-bar">
-          <input type="text" id="modelSearch" placeholder="搜索模型名称..." oninput="filterModels()">
-          <select id="modelFilter" onchange="filterModels()">
-            <option value="">全部类型</option>
-            <option value="free">免费模型</option>
-            <option value="paid">付费模型</option>
-          </select>
+        <div class="providers-grid" id="providersGrid"></div>
+        <div style="margin-top:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">全部模型 <span style="font-size:11px;color:var(--text-secondary);font-weight:400" id="modelCount">0</span></div>
+          <div class="models-grid" id="modelsGrid"></div>
         </div>
-        <div class="models-grid" id="modelsGrid"></div>
       </div>
     </div>
 
@@ -502,42 +733,6 @@
       </div>
     </div>
 
-    <!-- Admin -->
-    <div class="section" id="tab-admin" style="display:none">
-      <div class="section-header"><div class="section-title">管理面板</div></div>
-      <div class="section-body">
-        <div id="adminLogin">
-          <div class="admin-login">
-            <h3>管理员登录</h3>
-            <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px">输入管理员密码以管理提供商和 API 密钥。</p>
-            <input type="password" id="adminPassword" placeholder="管理员密码" onkeydown="if(event.key==='Enter')adminLogin()">
-            <button class="btn btn-primary" onclick="adminLogin()" style="width:100%">登录</button>
-          </div>
-        </div>
-        <div id="adminContent" style="display:none">
-          <div style="display:flex;gap:6px;margin-bottom:14px">
-            <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminProviders')">提供商</button>
-            <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
-            <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出登录</button>
-          </div>
-          <div id="adminProviders">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <h4 style="font-size:13px">提供商管理</h4>
-              <button class="btn btn-primary btn-sm" onclick="showAddProviderModal()">+ 添加提供商</button>
-            </div>
-            <div id="adminProviderList"></div>
-          </div>
-          <div id="adminKeys" style="display:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <h4 style="font-size:13px">API 密钥管理</h4>
-              <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ 创建密钥</button>
-            </div>
-            <div id="adminKeyList"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Guide -->
     <div class="section" id="tab-guide" style="display:none">
       <div class="section-header"><div class="section-title">配置指南</div></div>
@@ -613,9 +808,12 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
 
   <script>
     const API_BASE = '';
+
     let adminToken = localStorage.getItem('relay_admin_token') || '';
     let apiKeys = [];
     let allModels = [];
+    let marketToken = localStorage.getItem('market_token') || '';
+    let currentUser = null;
 
     function showToast(msg, type = 'success') {
       const t = document.getElementById('toast');
@@ -647,9 +845,32 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       return `${Math.floor(s/86400)}d ago`;
     }
 
+    let providerLayoutMode = localStorage.getItem('provider_layout') || 'grid';
+    let selectedProvider = null;
+
+    function toggleProviderLayout() {
+      providerLayoutMode = providerLayoutMode === 'grid' ? 'list' : 'grid';
+      localStorage.setItem('provider_layout', providerLayoutMode);
+      applyProviderLayout();
+    }
+
+    function applyProviderLayout() {
+      const grid = document.getElementById('providersGrid');
+      const btn = document.getElementById('layoutToggle');
+      if (!grid || !btn) return;
+      if (providerLayoutMode === 'list') {
+        grid.classList.add('list-view');
+        btn.textContent = '☰ 列表';
+      } else {
+        grid.classList.remove('list-view');
+        btn.textContent = '▦ 网格';
+      }
+    }
+
     function showTab(name, btn) {
-      ['providers','models','logs','playground','admin','guide'].forEach(t => {
-        document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+      ['user','providers','logs','playground','guide'].forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        if (el) el.style.display = t === name ? '' : 'none';
       });
       document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
@@ -668,8 +889,6 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       document.getElementById('modalProviderName').disabled = !!editName;
       document.getElementById('addProviderModal').classList.add('show');
     }
-
-    function toggleAdmin() { showTab('admin', document.getElementById('tabAdminBtn')); }
 
     function adminLogin() {
       const pwd = document.getElementById('adminPassword').value;
@@ -781,13 +1000,19 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       showToast('密钥已撤销', 'info');
     }
 
+    function selectProvider(name) {
+      selectedProvider = selectedProvider === name ? null : name;
+      loadDashboard();
+    }
+
     function filterModels() {
       const search = document.getElementById('modelSearch').value.toLowerCase();
       const filter = document.getElementById('modelFilter').value;
       const filtered = allModels.filter(m => {
         const matchSearch = m.id.toLowerCase().includes(search) || (m.name || '').toLowerCase().includes(search);
         const matchFilter = filter === '' || (filter === 'free' && m.free) || (filter === 'paid' && !m.free);
-        return matchSearch && matchFilter;
+        const matchProvider = !selectedProvider || m.provider === selectedProvider;
+        return matchSearch && matchFilter && matchProvider;
       });
       renderModels(filtered);
     }
@@ -804,6 +1029,221 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       document.getElementById('modelCount').textContent = models.length;
     }
 
+    // ========== User Center ==========
+    async function userDoLogin() {
+      const username = document.getElementById('userLoginUsername').value.trim();
+      const password = document.getElementById('userLoginPassword').value;
+      if (!username || !password) { showToast('请输入用户名和密码', 'error'); return; }
+      try {
+        const res = await fetch(API_BASE + '/api/market/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (data.error) { showToast(data.error.message, 'error'); return; }
+        marketToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('market_token', marketToken);
+        renderUserPanel();
+        showToast('登录成功');
+      } catch (e) { showToast('登录失败: ' + e.message, 'error'); }
+    }
+
+    function userLogout() {
+      marketToken = '';
+      currentUser = null;
+      localStorage.removeItem('market_token');
+      document.getElementById('userLogin').style.display = '';
+      document.getElementById('userContent').style.display = 'none';
+      showToast('已退出登录', 'info');
+    }
+
+    async function loadUserProfile() {
+      if (!marketToken) return;
+      try {
+        const res = await fetch(API_BASE + '/api/market/auth/profile', {
+          headers: { 'Authorization': 'Bearer ' + marketToken },
+        });
+        if (res.ok) {
+          currentUser = await res.json();
+          renderUserPanel();
+        } else {
+          marketToken = '';
+          localStorage.removeItem('market_token');
+        }
+      } catch (e) { console.error('Profile load failed:', e); }
+    }
+
+    function renderUserPanel() {
+      if (!currentUser) return;
+      document.getElementById('userLogin').style.display = 'none';
+      document.getElementById('userContent').style.display = '';
+      document.getElementById('userAvatar').textContent = (currentUser.username || '?')[0].toUpperCase();
+      document.getElementById('userDisplayName').textContent = currentUser.username;
+      document.getElementById('userRole').textContent = currentUser.role === 'seller' ? '卖家' : '买家';
+      document.getElementById('uBalance').textContent = (currentUser.balance || 0).toFixed(2);
+      document.getElementById('uFrozen').textContent = (currentUser.frozenBalance || 0).toFixed(2);
+
+      // Load orders & transactions for stats
+      loadUserStats();
+    }
+
+    async function loadUserStats() {
+      if (!marketToken) return;
+      try {
+        const [ordersRes, txnRes] = await Promise.all([
+          fetch(API_BASE + '/api/market/orders', { headers: { 'Authorization': 'Bearer ' + marketToken } }),
+          fetch(API_BASE + '/api/market/wallet/transactions', { headers: { 'Authorization': 'Bearer ' + marketToken } }),
+        ]);
+        const orders = await ordersRes.json();
+        const txns = await txnRes.json();
+
+        const orderList = orders.orders || orders || [];
+        const txnList = txns.transactions || txns || [];
+
+        // Today stats
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const todayTs = todayStart.getTime();
+
+        const todayTxns = txnList.filter(t => t.createdAt >= todayTs);
+        const todaySpend = todayTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+        const todayReqCount = todayTxns.filter(t => t.type === 'purchase').length;
+
+        document.getElementById('uTodayReq').textContent = todayReqCount;
+        document.getElementById('uTodaySpend').textContent = todaySpend.toFixed(2);
+
+        // Token stats from relay stats
+        const statsRes = await fetch(API_BASE + '/api/stats');
+        const stats = await statsRes.json();
+        const totalTokens = stats.totalTokens || 0;
+        const todayLogs = (stats.logs || []).filter(l => l.timestamp >= todayTs);
+        const todayTokens = todayLogs.reduce((s, l) => s + (l.tokens || 0), 0);
+
+        document.getElementById('uTodayTokens').textContent = formatNumber(todayTokens);
+        document.getElementById('uTotalTokens').textContent = formatNumber(totalTokens);
+
+        // System stats in user panel
+        const totalReqs = stats.totalRequests || 0;
+        const totalErrors = stats.totalErrors || 0;
+        const uTotalReqsEl = document.getElementById('uTotalReqs');
+        const uErrorRateEl = document.getElementById('uErrorRate');
+        const uActiveProvidersEl = document.getElementById('uActiveProviders');
+        if (uTotalReqsEl) uTotalReqsEl.textContent = formatNumber(totalReqs);
+        if (uErrorRateEl) uErrorRateEl.textContent = (totalReqs > 0 ? ((totalErrors / totalReqs) * 100).toFixed(1) : '0') + '%';
+
+        // Performance metrics
+        const providers = stats.providers || [];
+        const activeCount = providers.filter(p => !p.blocked && p.health?.healthy !== false).length;
+        if (uActiveProvidersEl) uActiveProvidersEl.textContent = activeCount;
+        const totalCount = providers.length || 1;
+        const successRate = totalReqs > 0 ? ((totalReqs - totalErrors) / totalReqs * 100) : 100;
+        const avgLatency = providers.reduce((s, p) => s + (p.health?.latency || 0), 0) / totalCount;
+        const healthRate = (activeCount / totalCount) * 100;
+
+        document.getElementById('perfSuccessRate').textContent = successRate.toFixed(1) + '%';
+        document.getElementById('perfSuccessBar').style.width = successRate + '%';
+        document.getElementById('perfAvgLatency').textContent = Math.round(avgLatency) + 'ms';
+        document.getElementById('perfLatencyBar').style.width = Math.min(100, avgLatency / 10) + '%';
+        document.getElementById('perfProviderHealth').textContent = activeCount + '/' + totalCount;
+        document.getElementById('perfHealthBar').style.width = healthRate + '%';
+
+        // Model distribution chart
+        const modelCounts = {};
+        (stats.logs || []).forEach(l => {
+          if (l.model) modelCounts[l.model] = (modelCounts[l.model] || 0) + 1;
+        });
+        const modelEntries = Object.entries(modelCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        const maxCount = modelEntries[0]?.[1] || 1;
+        const chartEl = document.getElementById('modelDistChart');
+        if (modelEntries.length > 0) {
+          chartEl.innerHTML = modelEntries.map(([model, count]) => {
+            const h = Math.max(4, (count / maxCount) * 100);
+            const shortName = model.length > 16 ? model.slice(0, 14) + '..' : model;
+            return `<div class="bar-col"><div class="bar-value">${count}</div><div class="bar" style="height:${h}%"></div><div class="bar-label">${shortName}</div></div>`;
+          }).join('');
+        }
+
+        // Token usage trend (last 7 days)
+        const days = 7;
+        const trendData = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+          const dayStart = d.getTime();
+          const dayEnd = dayStart + 86400000;
+          const dayTokens = (stats.logs || [])
+            .filter(l => l.timestamp >= dayStart && l.timestamp < dayEnd)
+            .reduce((s, l) => s + (l.tokens || 0), 0);
+          trendData.push({ label: (d.getMonth()+1) + '/' + d.getDate(), value: dayTokens });
+        }
+        const maxTrend = Math.max(...trendData.map(d => d.value), 1);
+        const trendEl = document.getElementById('tokenTrendChart');
+        if (trendData.some(d => d.value > 0)) {
+          trendEl.innerHTML = trendData.map(d => {
+            const h = Math.max(4, (d.value / maxTrend) * 100);
+            return `<div class="bar-col"><div class="bar-value">${formatNumber(d.value)}</div><div class="bar" style="height:${h}%;background:linear-gradient(180deg,var(--cyan),var(--success))"></div><div class="bar-label">${d.label}</div></div>`;
+          }).join('');
+        }
+
+        // API Keys from orders
+        const completedOrders = orderList.filter(o => o.status === 'completed');
+        const keysEl = document.getElementById('userApiKeys');
+        if (completedOrders.length > 0) {
+          keysEl.innerHTML = completedOrders.map(o => `
+            <div class="api-key-row">
+              <span style="font-size:11px;color:var(--text-secondary)">${o.description || 'API Key'}</span>
+              <code>${o.apiKey || '***'}</code>
+              <span class="tag" style="background:rgba(16,185,129,0.12);color:var(--success)">${o.status}</span>
+            </div>
+          `).join('');
+        }
+
+        // Recent orders
+        const ordersEl = document.getElementById('userOrders');
+        if (orderList.length > 0) {
+          ordersEl.innerHTML = orderList.slice(0, 5).map(o => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">
+              <div>
+                <div style="font-weight:600">${o.description || 'API 购买'}</div>
+                <div style="color:var(--text-secondary);font-size:11px">${timeAgo(o.createdAt)}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-weight:700;color:${o.status==='completed'?'var(--success)':o.status==='frozen'?'var(--warning)':'var(--error)'}">${o.totalPrice?.toFixed(2) || '--'}</div>
+                <span class="tag" style="background:${o.status==='completed'?'rgba(16,185,129,0.12)':o.status==='frozen'?'rgba(245,158,11,0.12)':'rgba(239,68,68,0.12)'};color:${o.status==='completed'?'var(--success)':o.status==='frozen'?'var(--warning)':'var(--error)'}">
+                  ${o.status === 'completed' ? '已完成' : o.status === 'frozen' ? '冻结中' : o.status === 'refunded' ? '已退款' : o.status}
+                </span>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Dynamic suggestions based on user state
+        const suggestionsEl = document.getElementById('suggestions');
+        let suggestions = [];
+        if (currentUser.balance < 1) {
+          suggestions.push({ icon: '💰', title: '余额不足', desc: '您的余额较低，请联系管理员充值', action: null });
+        }
+        if (completedOrders.length === 0) {
+          suggestions.push({ icon: '🛒', title: '浏览市场', desc: '发现更多供应商和模型', action: "window.location='/market'" });
+        }
+        suggestions.push({ icon: '🧪', title: '测试 API', desc: '在测试台中试用免费模型', action: "showTab('playground',document.querySelectorAll('.tab')[4])" });
+        suggestions.push({ icon: '📖', title: '配置指南', desc: '获取免费 API 密钥', action: "showTab('guide',document.querySelectorAll('.tab')[6])" });
+        if (currentUser.role === 'buyer') {
+          suggestions.push({ icon: '🏪', title: '成为卖家', desc: '上架您的 API Key 赚取收益', action: "window.location='/market'" });
+        }
+
+        suggestionsEl.innerHTML = suggestions.map(s => `
+          <div class="suggestion-card" ${s.action ? `onclick="${s.action}"` : ''}>
+            <div class="suggestion-icon">${s.icon}</div>
+            <div class="suggestion-text">
+              <strong>${s.title}</strong>
+              <span>${s.desc}</span>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (e) { console.error('User stats load failed:', e); }
+    }
+
     async function refreshStats() {
       try {
         const [statsRes, modelsRes] = await Promise.all([fetch(API_BASE + '/api/stats'), fetch(API_BASE + '/api/models')]);
@@ -811,34 +1251,41 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const models = await modelsRes.json();
         allModels = models.data || [];
 
-        document.getElementById('statRequests').textContent = formatNumber(stats.totalRequests || 0);
-        document.getElementById('statTokens').textContent = formatNumber(stats.totalTokens || 0);
+        // Update user panel stats if logged in
         const total = stats.totalRequests || 0;
         const errors = stats.totalErrors || 0;
-        document.getElementById('statErrors').textContent = (total > 0 ? ((errors / total) * 100).toFixed(1) : '0') + '%';
-        document.getElementById('errorCount').textContent = errors + ' 次错误';
-        document.getElementById('uptimeText').textContent = formatUptime(stats.uptime || 0);
-        document.getElementById('heroUptime').textContent = formatUptime(stats.uptime || 0);
+        const uptimeEl = document.getElementById('uptimeText');
+        const heroUptimeEl = document.getElementById('heroUptime');
+        if (uptimeEl) uptimeEl.textContent = formatUptime(stats.uptime || 0);
+        if (heroUptimeEl) heroUptimeEl.textContent = formatUptime(stats.uptime || 0);
 
         const providers = stats.providers || [];
         const active = providers.filter(p => !p.blocked && p.health?.healthy !== false).length;
-        document.getElementById('statProviders').textContent = active;
-        document.getElementById('providerSub').textContent = `共 ${providers.length} 个`;
-        document.getElementById('providerCount').textContent = providers.length;
+        const providerCountEl = document.getElementById('providerCount');
+        if (providerCountEl) providerCountEl.textContent = providers.length;
 
-        // Providers
+        // Update user center stats
+        const uTotalReqsEl = document.getElementById('uTotalReqs');
+        const uErrorRateEl = document.getElementById('uErrorRate');
+        const uActiveProvidersEl = document.getElementById('uActiveProviders');
+        if (uTotalReqsEl) uTotalReqsEl.textContent = formatNumber(total);
+        if (uErrorRateEl) uErrorRateEl.textContent = (total > 0 ? ((errors / total) * 100).toFixed(1) : '0') + '%';
+        if (uActiveProvidersEl) uActiveProvidersEl.textContent = active;
+
         document.getElementById('providersGrid').innerHTML = providers.map(p => {
           const status = p.blocked ? 'blocked' : (p.health?.healthy === false ? 'unhealthy' : 'active');
           const statusText = p.blocked ? '已阻断' : (p.health?.healthy === false ? '不健康' : '正常');
           const latency = p.health?.latency ? p.health.latency + 'ms' : '--';
           const failures = p.health?.consecutiveFailures || 0;
+          const pModels = allModels.filter(m => m.provider === p.name);
+          const isSelected = selectedProvider === p.name;
           return `
-            <div class="provider-card">
-              <div class="provider-icon" style="background:${status === 'active' ? 'rgba(59,130,246,0.12)' : status === 'blocked' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)'};color:${status === 'active' ? 'var(--accent)' : status === 'blocked' ? 'var(--error)' : 'var(--warning)'}">
+            <div class="provider-card" style="cursor:pointer;${isSelected ? 'border-color:var(--accent);background:var(--bg-hover);box-shadow:0 0 12px rgba(59,130,246,0.15)' : ''}" onclick="selectProvider('${p.name}')">
+              <div class="provider-icon" style="background:${isSelected ? 'var(--accent)' : status === 'active' ? 'rgba(59,130,246,0.12)' : status === 'blocked' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)'};color:${isSelected ? 'white' : status === 'active' ? 'var(--accent)' : status === 'blocked' ? 'var(--error)' : 'var(--warning)'}">
                 ${p.name.charAt(0).toUpperCase()}
               </div>
               <div class="provider-info">
-                <div class="provider-name">${p.name}</div>
+                <div class="provider-name">${p.name} <span style="font-size:10px;color:var(--text-secondary);font-weight:400">(${pModels.length})</span></div>
                 <div class="provider-url">${p.baseUrl}</div>
                 <div class="provider-meta">
                   <span class="tag tag-weight">W:${p.weight}</span>
@@ -849,11 +1296,10 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
               <span class="provider-status ${status}">${statusText}</span>
             </div>`;
         }).join('');
+        applyProviderLayout();
 
-        // Models
         filterModels();
 
-        // Logs
         let logs = stats.logs || [];
         const filterModel = document.getElementById('logFilterModel').value;
         const filterProvider = document.getElementById('logFilterProvider').value;
@@ -935,8 +1381,10 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       document.getElementById('adminContent').style.display = '';
       loadAdminData();
     }
+    loadUserProfile();
     refreshStats();
     setInterval(refreshStats, 5000);
   </script>
+  <script src="/fixes/dashboard-patch.js" defer></script>
 </body>
 </html>

@@ -5,18 +5,33 @@ const store = require('../store');
 class HealthCheckService {
   constructor() {
     this.interval = null;
+    this.keepAliveInterval = null;
   }
 
   start() {
     this.check();
     this.interval = setInterval(() => this.check(), config.healthCheckIntervalMs);
     console.log(`[HealthCheck] Started, interval: ${config.healthCheckIntervalMs / 1000}s`);
+
+    // Anti-sleep: self-ping every 10 minutes to prevent Render free tier from sleeping
+    if (process.env.NODE_ENV === 'production' && process.env.RENDER) {
+      const SELF_PING_MS = 10 * 60 * 1000; // 10 minutes
+      this.keepAliveInterval = setInterval(() => {
+        const url = `http://localhost:${config.port}/health`;
+        axios.get(url, { timeout: 5000 }).catch(() => {});
+      }, SELF_PING_MS);
+      console.log(`[HealthCheck] Anti-sleep ping enabled (every 10min)`);
+    }
   }
 
   stop() {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
+    }
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
     }
   }
 
