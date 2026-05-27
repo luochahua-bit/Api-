@@ -25,7 +25,7 @@ nav button:hover,nav button.active{background:var(--primary-bg);color:var(--prim
 .btn-ghost{background:none;border:none;color:var(--text3);cursor:pointer;padding:6px;border-radius:6px;font-size:16px}.btn-ghost:hover{background:var(--primary-bg);color:var(--primary)}
 .btn-secondary{background:rgba(99,102,241,.1);color:var(--primary);border:1px solid rgba(99,102,241,.3)}.btn-secondary:hover{background:rgba(99,102,241,.2)}
 .btn-danger{background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.3)}.btn-danger:hover{background:rgba(239,68,68,.2)}
-.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;line-height:1.4;white-space:nowrap}
 .badge-green{background:rgba(34,197,94,.15);color:#22c55e}
 .badge-yellow{background:rgba(245,158,11,.15);color:#f59e0b}
 .badge-red{background:rgba(239,68,68,.15);color:#ef4444}
@@ -101,6 +101,19 @@ textarea{min-height:60px;resize:vertical}
 <link rel="manifest" href="/fixes/manifest.json">
 <link rel="icon" href="/fixes/icon-192.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/fixes/marketplace-styles.css">
+<script>
+  // Auto-unregister old Service Workers and clear stale caches
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(reg) { reg.unregister(); });
+    });
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        names.forEach(function(name) { caches.delete(name); });
+      });
+    }
+  }
+</script>
 </head>
 <body>
 <header>
@@ -175,36 +188,55 @@ textarea{min-height:60px;resize:vertical}
   <div id="page-sell" class="hidden">
     <h2 style="margin-bottom:16px;font-size:18px">上架 API Key</h2>
     <div class="card" style="max-width:640px">
+      <div class="form-group">
+        <label>选择提供商</label>
+        <select id="providerSelect" onchange="onProviderSelect(this.value)" style="margin-bottom:8px">
+          <option value="">-- 手动输入或选择提供商 --</option>
+          <option value="https://openrouter.ai/api/v1">OpenRouter（25+ 免费模型）</option>
+          <option value="https://api.groq.com/openai/v1">Groq（超快推理）</option>
+          <option value="https://api.cerebras.ai/v1">Cerebras（极速推理）</option>
+          <option value="https://api.sambanova.ai/v1">SambaNova（DeepSeek 等）</option>
+          <option value="https://generativelanguage.googleapis.com/v1beta/openai">Google AI Studio（Gemini 免费）</option>
+          <option value="https://api.mistral.ai/v1">Mistral（免费额度大）</option>
+          <option value="https://models.inference.ai.azure.com">GitHub Models（GPT-4o 免费）</option>
+          <option value="https://integrate.api.nvidia.com/v1">NVIDIA NIM</option>
+          <option value="https://api.cohere.com/compatibility/v1">Cohere</option>
+          <option value="https://api.deepseek.com/v1">DeepSeek</option>
+          <option value="https://api.openai.com/v1">OpenAI</option>
+          <option value="https://api.anthropic.com/v1">Anthropic（Claude）</option>
+          <option value="custom">自定义地址...</option>
+        </select>
+      </div>
       <div class="form-group"><label>API Base URL</label><input type="text" id="sellBaseUrl" placeholder="https://api.example.com/v1"></div>
       <div class="form-group"><label>API Key</label><input type="password" id="sellApiKey" placeholder="sk-xxxxx"></div>
       <button class="btn btn-secondary" id="probeBtn" onclick="probeModels()" style="width:100%;margin-bottom:14px">🔍 探测可用模型</button>
       <div id="probeResult" style="display:none;margin-bottom:14px">
         <div style="font-size:12px;color:var(--text3);margin-bottom:8px">检测到 <span id="probeCount">0</span> 个模型，勾选要上架的：</div>
-        <div id="probeModelsList" style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:6px">
-          <button class="btn btn-sm btn-secondary" onclick="selectAllModels(true)">全选</button>
-          <button class="btn btn-sm btn-secondary" onclick="selectAllModels(false)" style="margin-left:4px">全不选</button>
-          <span style="margin-left:8px">已选 <span id="selectedCount">0</span> 个</span>
+        <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+          <input type="text" id="probeSearch" placeholder="搜索模型名称..." oninput="filterProbeModels()" style="flex:1;padding:6px 10px;font-size:12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+          <button class="btn btn-sm btn-outline" onclick="selectAllModels(true)">全选</button>
+          <button class="btn btn-sm btn-outline" onclick="selectAllModels(false)">全不选</button>
+          <span style="font-size:11px;color:var(--text3)">已选 <span id="selectedCount">0</span></span>
         </div>
+        <div id="probeModelsList" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
       </div>
       <div class="form-group"><label>商品描述</label><textarea id="sellDescription" placeholder="例如：GPT-4o 额度，还剩 $50"></textarea></div>
       <div class="form-group" id="manualModelsGroup"><label>手动填写模型（逗号分隔，探测后自动填充）</label><input type="text" id="sellModels" placeholder="gpt-4o, gpt-4o-mini, deepseek-chat"></div>
       <div class="form-group"><label>模型倍率（JSON格式，如 {"gpt-4o":10,"gpt-4o-mini":1}）</label><input type="text" id="sellModelRates" placeholder='{"gpt-4o":10,"gpt-3.5-turbo":1}'></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-        <div class="form-group"><label>基础价格/次</label><input type="number" id="sellPriceReq" placeholder="0.01" step="0.001" min="0"></div>
-        <div class="form-group"><label>价格/Token</label><input type="number" id="sellPriceToken" placeholder="0.00001" step="0.000001" min="0"></div>
-        <div class="form-group"><label>总配额</label><input type="number" id="sellQuota" placeholder="10000" min="1"></div>
-      </div>
       <div class="form-group">
         <label>使用模式</label>
         <div style="display:flex;gap:8px;margin-top:6px">
-          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--secondary-bg);border:2px solid var(--primary);border-radius:8px;cursor:pointer;font-size:12px;flex:1">
-            <input type="radio" name="sharingMode" value="shared" checked> 👥 <strong>共享</strong> <span style="color:var(--text3);font-size:11px">多人共用，按量计费</span>
+          <label style="display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--secondary-bg);border:2px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;flex:1" id="modeExclusiveLabel">
+            <input type="radio" name="sharingMode" value="exclusive"> <strong>独享</strong> <span style="color:var(--text3);font-size:11px">一次只卖一人，交易结束后可再卖</span>
           </label>
-          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--secondary-bg);border:2px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;flex:1">
-            <input type="radio" name="sharingMode" value="exclusive"> 🔒 <strong>独占</strong> <span style="color:var(--text3);font-size:11px">一人独享，售出即止</span>
+          <label style="display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--secondary-bg);border:2px solid var(--primary);border-radius:8px;cursor:pointer;font-size:12px;flex:1" id="modeSharedLabel">
+            <input type="radio" name="sharingMode" value="shared" checked> <strong>共享</strong> <span style="color:var(--text3);font-size:11px">多人各买一个 Key</span>
           </label>
         </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group"><label>单个 Key 价格（金币）</label><input type="number" id="sellKeyPrice" placeholder="最低 0.01" step="0.01" min="0.01"></div>
+        <div class="form-group" id="sellQuotaGroup"><label>共享数量（可卖给几人）</label><input type="number" id="sellQuota" placeholder="10" min="1" max="1000"></div>
       </div>
       <div style="background:var(--primary-bg);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2)">
         <strong style="color:var(--primary)">模型验证：</strong>上架时系统会自动验证你的 API Key 和模型是否可用。购买时会再次验证，确保买家权益。
@@ -226,29 +258,72 @@ textarea{min-height:60px;resize:vertical}
 
   <!-- Wallet Page -->
   <div id="page-wallet" class="hidden">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:20px">
       <div class="card" style="text-align:center">
-        <div style="font-size:11px;color:var(--text3)">可用余额</div>
-        <div style="font-size:28px;font-weight:800;color:var(--success);margin:6px 0" id="walletBalance">0</div>
-        <div style="font-size:11px;color:var(--text3)">平台币</div>
+        <div style="font-size:11px;color:var(--text3)">金币余额</div>
+        <div style="font-size:28px;font-weight:800;color:var(--success);margin:6px 0" id="walletCoins">0</div>
+        <div style="font-size:11px;color:var(--text3)">可用金币</div>
       </div>
       <div class="card" style="text-align:center">
-        <div style="font-size:11px;color:var(--text3)">冻结资金</div>
-        <div style="font-size:28px;font-weight:800;color:var(--warning);margin:6px 0" id="walletFrozen">0</div>
-        <div style="font-size:11px;color:var(--text3)">交易中</div>
+        <div style="font-size:11px;color:var(--text3)">冻结金币</div>
+        <div style="font-size:28px;font-weight:800;color:var(--warning);margin:6px 0" id="walletFrozenCoins">0</div>
+        <div style="font-size:11px;color:var(--text3)">交易保证金</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">服务费抵扣</div>
+        <div style="font-size:28px;font-weight:800;color:var(--info);margin:6px 0" id="walletFeeCredits">0</div>
+        <div style="font-size:11px;color:var(--text3)">可抵扣服务费</div>
       </div>
       <div class="card">
-        <div class="stat-row"><span>累计消费</span><span id="walletSpending" style="font-weight:700">0</span></div>
-        <div class="stat-row"><span>累计收入</span><span id="walletEarnings" style="font-weight:700">0</span></div>
+        <div class="stat-row"><span>累计消费</span><span id="walletCoinSpending" style="font-weight:700">0</span></div>
+        <div class="stat-row"><span>累计收入</span><span id="walletCoinEarnings" style="font-weight:700">0</span></div>
       </div>
     </div>
+    <!-- Recharge Panel -->
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="font-size:14px;margin-bottom:12px">充值金币</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn btn-sm btn-outline recharge-btn" onclick="selectRecharge(10)">10</button>
+        <button class="btn btn-sm btn-outline recharge-btn" onclick="selectRecharge(50)">50</button>
+        <button class="btn btn-sm btn-outline recharge-btn" onclick="selectRecharge(100)">100</button>
+        <button class="btn btn-sm btn-outline recharge-btn" onclick="selectRecharge(500)">500</button>
+        <button class="btn btn-sm btn-outline recharge-btn" onclick="selectRecharge(1000)">1000</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="rechargeAmount" placeholder="自定义金额" min="1" max="100000" style="flex:1">
+        <button class="btn btn-primary" onclick="doRecharge()">立即充值</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">1 金币 = 1 元人民币 · 充值后立即到账</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div class="card">
+        <h3 style="font-size:14px;margin-bottom:10px">🎫 兑换码</h3>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="redeemCode" placeholder="输入兑换码" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="doRedeem()">兑换</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:14px;margin-bottom:10px">💰 提现</h3>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="withdrawAmount" placeholder="提现金币数" min="1" style="flex:1">
+          <button class="btn btn-outline btn-sm" onclick="doWithdraw()">申请提现</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px">📊 金币流水</h3>
+      <div id="coinTransactions"></div>
+    </div>
+  </div>
     <h3 style="margin-bottom:12px;font-size:15px">交易记录</h3>
     <div id="transactionsList"></div>
   </div>
 </div>
 
 <!-- Auth Modal -->
-<div id="authModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('authModal')">
+<div id="authModal" class="modal-overlay hidden" style="z-index:300">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('authModal')">&times;</button>
     <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px">
@@ -257,15 +332,25 @@ textarea{min-height:60px;resize:vertical}
     </div>
     <div id="loginForm">
       <div class="form-group"><label>用户名</label><input type="text" id="loginUsername" placeholder="demo_buyer"></div>
-      <div class="form-group"><label>密码</label><input type="password" id="loginPassword" placeholder="demo123"></div>
+      <div class="form-group"><label>密码</label>
+        <div style="position:relative"><input type="password" id="loginPassword" placeholder="demo123" style="padding-right:36px"><button type="button" onclick="togglePwd('loginPassword',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">👁</button></div>
+      </div>
       <button class="btn btn-primary" onclick="doLogin()" style="width:100%">登录</button>
       <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">演示账号: demo_buyer / demo123</div>
     </div>
     <div id="registerForm" class="hidden">
-      <div class="form-group"><label>用户名</label><input type="text" id="regUsername"></div>
-      <div class="form-group"><label>邮箱</label><input type="email" id="regEmail"></div>
-      <div class="form-group"><label>密码</label><input type="password" id="regPassword"></div>
-      <div class="form-group"><label>身份</label><select id="regRole"><option value="buyer">买家</option><option value="seller">卖家</option></select></div>
+      <div class="form-group"><label>用户名</label><input type="text" id="regUsername" placeholder="3-20个字符"></div>
+      <div class="form-group"><label>邮箱</label>
+        <div style="display:flex;gap:8px">
+          <input type="email" id="regEmail" placeholder="your@email.com" style="flex:1">
+          <button class="btn btn-sm btn-outline" id="sendCodeBtn" onclick="doSendCode()" style="white-space:nowrap;min-width:90px">发送验证码</button>
+        </div>
+      </div>
+      <div class="form-group"><label>邮箱验证码</label><input type="text" id="regCode" placeholder="6位数字验证码" maxlength="6" inputmode="numeric"></div>
+      <div class="form-group"><label>密码</label>
+        <div style="position:relative"><input type="password" id="regPassword" placeholder="至少6位" style="padding-right:36px"><button type="button" onclick="togglePwd('regPassword',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">👁</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">注册后即可同时进行买卖操作</div>
       <button class="btn btn-primary" onclick="doRegister()" style="width:100%">注册</button>
     </div>
   </div>
@@ -321,10 +406,12 @@ function getProviderIcon(name){var k=getProvider(name);return PROVIDER_ICONS[k]|
 function getProviderCls(name){var k=getProvider(name);return PROVIDER_CLS[k]||'provider-default';}
 
 function toast(msg,type){type=type||'success';var el=document.createElement('div');el.className='toast toast-'+type;el.textContent=msg;document.body.appendChild(el);setTimeout(function(){el.remove()},3500);}
+function togglePwd(inputId,btn){var inp=document.getElementById(inputId);if(!inp)return;if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}else{inp.type='password';btn.textContent='👁';}}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 function stars(n){n=Math.round(n||0);var s='';for(var i=0;i<5;i++)s+=i<n?'★':'☆';return s;}
 function fmtTime(ts){return new Date(ts).toLocaleString();}
 function fmtPrice(p){return p>0?p.toFixed(2):'免费';}
+function fmtCoins(n){return (n||0).toFixed(2);}
 
 async function api(path,opts){opts=opts||{};var h={'Content-Type':'application/json'};if(token)h['Authorization']='Bearer '+token;var r=await fetch(API+path,Object.assign({},opts,{headers:Object.assign({},h,opts.headers||{})}));var d=await r.json();if(!r.ok)throw new Error(d.error&&d.error.message||'Error');return d;}
 
@@ -346,10 +433,73 @@ function toggleCardSize(){cardSize=cardSize==='large'?'compact':'large';localSto
 function showModal(id){document.getElementById(id).classList.remove('hidden');}
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
 function showAuthModal(){showModal('authModal');}
+
+function onProviderSelect(url){
+  var urlInput=document.getElementById('sellBaseUrl');
+  if(url==='custom'){
+    urlInput.value='';
+    urlInput.focus();
+    urlInput.placeholder='请输入自定义 API Base URL';
+  }else if(url){
+    urlInput.value=url;
+    // Auto-set API key placeholder based on provider
+    var keyInput=document.getElementById('sellApiKey');
+    if(url.includes('openrouter'))keyInput.placeholder='sk-or-v1-...';
+    else if(url.includes('groq'))keyInput.placeholder='gsk_...';
+    else if(url.includes('cerebras'))keyInput.placeholder='csk-...';
+    else if(url.includes('sambanova'))keyInput.placeholder='...';
+    else if(url.includes('google'))keyInput.placeholder='AIza...';
+    else if(url.includes('mistral'))keyInput.placeholder='...';
+    else if(url.includes('github'))keyInput.placeholder='ghp_...';
+    else if(url.includes('nvidia'))keyInput.placeholder='nvapi-...';
+    else if(url.includes('deepseek'))keyInput.placeholder='sk-...';
+    else if(url.includes('openai'))keyInput.placeholder='sk-...';
+    else if(url.includes('anthropic'))keyInput.placeholder='sk-ant-...';
+    else keyInput.placeholder='sk-xxxxx';
+  }
+}
+
+// Mode toggle: hide quota for exclusive mode
+document.addEventListener('DOMContentLoaded',function(){
+  var radios=document.querySelectorAll('input[name="sharingMode"]');
+  radios.forEach(function(r){
+    r.addEventListener('change',function(){
+      var quotaGroup=document.getElementById('sellQuotaGroup');
+      if(quotaGroup)quotaGroup.style.display=this.value==='exclusive'?'none':'';
+      // Update border highlight
+      document.getElementById('modeExclusiveLabel').style.borderColor=this.value==='exclusive'?'var(--primary)':'var(--border)';
+      document.getElementById('modeSharedLabel').style.borderColor=this.value==='shared'?'var(--primary)':'var(--border)';
+    });
+  });
+});
 function switchAuthTab(t){document.getElementById('loginForm').classList.toggle('hidden',t!=='login');document.getElementById('registerForm').classList.toggle('hidden',t!=='register');document.getElementById('authTabLogin').classList.toggle('btn-primary',t==='login');document.getElementById('authTabLogin').classList.toggle('btn-outline',t!=='login');document.getElementById('authTabRegister').classList.toggle('btn-primary',t==='register');document.getElementById('authTabRegister').classList.toggle('btn-outline',t!=='register');}
 
-async function doLogin(){try{var d=await api('/auth/login',{method:'POST',body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('登录成功');showPage(currentPage);}catch(e){toast(e.message,'error');}}
-async function doRegister(){try{var d=await api('/auth/register',{method:'POST',body:JSON.stringify({username:document.getElementById('regUsername').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPassword').value,role:document.getElementById('regRole').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('注册成功');showPage(currentPage);}catch(e){toast(e.message,'error');}}
+async function doLogin(){try{var d=await api('/auth/login',{method:'POST',body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('登录成功');if(_pendingBuyId){var bid=_pendingBuyId;_pendingBuyId=null;buyListing(bid);}else{showPage(currentPage);}}catch(e){toast(e.message,'error');}}
+async function doRegister(){try{var d=await api('/auth/register',{method:'POST',body:JSON.stringify({username:document.getElementById('regUsername').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPassword').value,code:document.getElementById('regCode').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('注册成功');showPage(currentPage);}catch(e){toast(e.message,'error');}}
+
+var _sendCodeTimer=null;
+async function doSendCode(){
+  var email=document.getElementById('regEmail').value.trim();
+  if(!email){toast('请先填写邮箱','error');return;}
+  var btn=document.getElementById('sendCodeBtn');
+  if(btn.disabled)return;
+  btn.disabled=true;
+  try{
+    var r=await api('/auth/send-code',{method:'POST',body:JSON.stringify({email:email})});
+    toast(r.message,'success');
+    // Countdown 60s
+    var sec=60;
+    btn.textContent=sec+'s';
+    _sendCodeTimer=setInterval(function(){
+      sec--;
+      if(sec<=0){clearInterval(_sendCodeTimer);btn.textContent='发送验证码';btn.disabled=false;}
+      else btn.textContent=sec+'s';
+    },1000);
+  }catch(e){
+    toast(e.message,'error');
+    btn.disabled=false;
+  }
+}
 function logout(){token=null;currentUser=null;localStorage.removeItem('market_token');updateUI();showPage('home');toast('已退出');}
 async function checkAuth(){if(!token)return;try{currentUser=await api('/auth/profile');updateUI();}catch(e){token=null;localStorage.removeItem('market_token');}}
 
@@ -361,8 +511,8 @@ function updateUI(){
   document.getElementById('balanceDisplay').classList.toggle('hidden',!ok);
   document.getElementById('frozenDisplay').classList.toggle('hidden',!ok);
   if(currentUser){
-    document.getElementById('userDisplay').textContent=currentUser.username+(currentUser.role==='seller'?' [卖家]':'');
-    document.getElementById('balanceDisplay').textContent='💰'+currentUser.balance.toFixed(2);
+    document.getElementById('userDisplay').textContent=currentUser.username;
+    document.getElementById('balanceDisplay').textContent=fmtCoins(currentUser.coins)+' 金币';
     var fb=currentUser.frozenBalance||0;
     document.getElementById('frozenDisplay').textContent=fb>0?'🔒'+fb.toFixed(2):'';
   }
@@ -381,18 +531,20 @@ function renderListing(l,compact){
     modelsHtml+='<span class="model-tag">'+esc(ms[i])+(rate?'<span class="rate">x'+rate+'</span>':'')+'</span>';
   }
   if(ms.length>show)modelsHtml+='<span class="model-tag">+'+(ms.length-show)+'</span>';
+  var isExclusive=l.sharingMode==='exclusive';
+  var isSoldOut=isExclusive&&l.buyerCount>0;
   var healthBadge=l.health&&l.health.healthy?'<span class="badge badge-green">正常</span>':'<span class="badge badge-red">异常</span>';
-  var verifyBadge=verified?'<span class="badge badge-verified">✓ 已验证</span>':'<span class="badge badge-yellow">待验证</span>';
-  var sharingBadge=l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">🔒 独占</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">👥 共享</span>';
-  var buyerInfo=l.sharingMode==='exclusive'?(l.buyerCount>0?'<span style="color:var(--error)">已售出</span>':'<span style="color:var(--success)">可购买</span>'):(l.buyerCount||0)+' 人在用';
+  var verifyBadge=verified?'<span class="badge badge-verified">已验证</span>':'<span class="badge badge-yellow">待验证</span>';
+  var sharingBadge=isExclusive?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">独占</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">共享</span>';
+  var statusText=isExclusive?(isSoldOut?'<span style="color:var(--error)">已售出</span>':'<span style="color:var(--success)">可购买</span>'):'<span style="display:flex;flex-direction:column;gap:2px;align-items:flex-end"><span>'+(l.remainingQuota>0?'剩余 '+l.remainingQuota+' 个':'已售罄')+'</span><span>'+(l.buyerCount||0)+' 人已购买</span></span>';
   return '<div class="card listing-card" onclick="showDetail(\''+l.id+'\')">'+
     '<div class="card-header"><div class="icon-provider '+pCls+'">'+pIcon+'</div><div style="flex:1;min-width:0">'+
     '<div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(l.description)+'</div>'+
     '<div style="font-size:11px;color:var(--text3);margin-top:2px">卖家: '+esc(l.sellerName)+' <span style="color:var(--warning)">'+stars(l.rating)+'</span> '+l.rating+'</div>'+
     '</div><span class="badge badge-green">'+priceText+'</span></div>'+
     '<div>'+modelsHtml+'</div>'+
-    '<div class="card-footer"><div style="display:flex;gap:8px;align-items:center">'+healthBadge+verifyBadge+sharingBadge+'</div>'+
-    '<div style="font-size:11px;color:var(--text3)">库存 '+l.remainingQuota+'/'+l.totalQuota+' | 已售 '+(l.soldCount||0)+' | '+buyerInfo+'</div></div></div>';
+    '<div class="card-footer"><div style="display:flex;gap:6px;align-items:center">'+healthBadge+verifyBadge+sharingBadge+'</div>'+
+    '<div style="font-size:11px;color:var(--text3)">'+statusText+'</div></div></div>';
 }
 
 async function loadHome(){
@@ -455,10 +607,9 @@ async function showDetail(id){
       '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">'+
       '<span class="badge badge-green">'+fmtPrice(l.pricePerRequest)+'/次</span>'+
       (l.pricePerToken?'<span class="badge badge-blue">'+l.pricePerToken+'/token</span>':'')+
-      '<span class="badge badge-yellow">库存 '+l.remainingQuota+'/'+l.totalQuota+'</span>'+
-      (verified?'<span class="badge badge-verified">✓ 模型已验证</span>':'<span class="badge badge-yellow">待验证</span>')+
+      (l.sharingMode!=='exclusive'?'<span class="badge badge-yellow">库存 '+l.remainingQuota+'/'+l.totalQuota+'</span>':'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">独占模式 - 仅限一位买家</span>')+
+      (verified?'<span class="badge badge-verified">模型已验证</span>':'<span class="badge badge-yellow">待验证</span>')+
       (l.health&&l.health.healthy?'<span class="badge badge-green">健康</span>':'<span class="badge badge-red">异常</span>')+
-      (l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">🔒 独占模式</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">👥 共享模式</span>')+
       '</div>'+
       '<div class="stat-row"><span>已售</span><span>'+(l.soldCount||0)+' 次</span></div>'+
       '<div class="stat-row"><span>在用人数</span><span>'+(l.buyerCount||0)+' 人'+(l.sharingMode==='exclusive'&&l.buyerCount>0?' <span style="color:var(--error)">（独占已售出）</span>':'')+'</span></div>'+
@@ -467,20 +618,48 @@ async function showDetail(id){
       modelsHtml+
       (l.sharingMode==='exclusive'&&l.buyerCount>0?
         '<button class="btn btn-secondary" disabled style="width:100%;margin-top:12px">已被他人独占购买</button>':
-        '<div style="margin-top:16px"><label style="font-size:12px;color:var(--text2)">购买数量（请求数）</label>'+
-        '<input type="number" id="buyAmount" value="100" min="1" max="'+l.remainingQuota+'" style="margin-top:4px"></div>'+
-        '<button class="btn btn-primary" onclick="buyListing(\''+l.id+'\')" style="width:100%;margin-top:12px">购买（自动验证 Key）</button>'
+        '<div style="margin-top:16px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">'+
+        '<div style="font-size:13px;font-weight:600;margin-bottom:8px">购买 API Key</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+
+        (l.sharingMode==='exclusive'?
+          '独享模式：购买后您将独占此 Key，交易结束后释放。':
+          '共享模式：购买后您获得专属虚拟 Key，与其他买家共享同一源 Key。')+
+        '</div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border)">'+
+        '<span style="font-size:12px;color:var(--text2)">价格</span>'+
+        '<span style="font-size:18px;font-weight:800;color:var(--primary)">'+fmtPrice(l.pricePerRequest)+' 金币</span></div>'+
+        '<div style="font-size:11px;color:var(--text3);margin:8px 0" id="detailCoinBalance">您的金币余额：加载中...</div>'+
+        '<button class="btn btn-primary" onclick="buyListing(\''+l.id+'\')" style="width:100%">确认购买（1 个 Key）</button></div>'
       )+
       reviewsHtml;
     showModal('detailModal');
+    // Load and show coin balance
+    var balEl=document.getElementById('detailCoinBalance');
+    if(balEl){
+      try{
+        var bal=await api('/coin/balance');
+        var txt='您的金币余额：'+fmtCoins(bal.coins)+' 金币';
+        if(bal.feeCredits>0) txt+='（服务费抵扣券 '+bal.feeCredits+'）';
+        balEl.textContent=txt;
+        balEl.style.color='var(--success)';
+      }catch(e){
+        balEl.textContent='余额加载失败';
+        balEl.style.color='var(--error)';
+      }
+    }
   }catch(e){toast(e.message,'error');}
 }
 
+var _pendingBuyId = null;
+
 async function buyListing(id){
-  if(!token){showAuthModal();return;}
-  var amount=parseInt(document.getElementById('buyAmount').value)||1;
+  if(!token){
+    _pendingBuyId = id;
+    showAuthModal();
+    return;
+  }
   try{
-    var d=await api('/orders',{method:'POST',body:JSON.stringify({listingId:id,amount:amount})});
+    var d=await api('/orders',{method:'POST',body:JSON.stringify({listingId:id,amount:1})});
     document.getElementById('keyValue').textContent=d.apiKey;
     showModal('keyModal');
     await checkAuth();
@@ -504,6 +683,21 @@ function showRotateKey(listingId){
   showModal('rotateKeyModal');
 }
 
+async function delistProduct(id){
+  if(!confirm('确定下架此商品？已购买用户的虚拟 Key 将继续有效。'))return;
+  try{
+    await api('/listings/'+id,{method:'PUT',body:JSON.stringify({status:'inactive'})});
+    toast('已下架','success');
+    loadMyListings();
+  }catch(e){toast(e.message,'error');}
+}
+async function relistProduct(id){
+  try{
+    await api('/listings/'+id,{method:'PUT',body:JSON.stringify({status:'active'})});
+    toast('已重新上架','success');
+    loadMyListings();
+  }catch(e){toast(e.message,'error');}
+}
 async function doRotateKey(){
   if(!rotatingListingId)return;
   var newKey=document.getElementById('rotateNewKey').value.trim();
@@ -552,15 +746,20 @@ async function createListing(){
     if(ratesStr&&!Object.keys(rates).length){try{rates=JSON.parse(ratesStr);}catch(e){toast('模型倍率格式错误，需要JSON','error');return;}}
     if(!models.length){toast('请至少选择一个模型','error');return;}
     var sharingMode=document.querySelector('input[name="sharingMode"]:checked');
+    var mode=sharingMode?sharingMode.value:'shared';
+    var keyPrice=parseFloat(document.getElementById('sellKeyPrice').value)||0;
+    var quota=mode==='exclusive'?1:(parseInt(document.getElementById('sellQuota').value)||10);
+    if(keyPrice<0.01){toast('Key 价格最低 0.01 金币','error');return;}
+    if(mode==='shared'&&quota<1){toast('共享数量至少为 1','error');return;}
     var d=await api('/listings',{method:'POST',body:JSON.stringify({
       baseUrl:document.getElementById('sellBaseUrl').value,
       apiKey:document.getElementById('sellApiKey').value,
       description:document.getElementById('sellDescription').value,
       models:models,modelRates:rates,
-      pricePerRequest:parseFloat(document.getElementById('sellPriceReq').value)||0,
-      pricePerToken:parseFloat(document.getElementById('sellPriceToken').value)||0,
-      totalQuota:parseInt(document.getElementById('sellQuota').value)||10000,
-      sharingMode:sharingMode?sharingMode.value:'shared'
+      pricePerRequest:keyPrice,
+      pricePerToken:0,
+      totalQuota:quota,
+      sharingMode:mode
     })});
     toast('上架成功！验证通过 '+(d.verification?d.verification.details.verified+'/'+d.verification.details.total+' 个模型':''));
     // Reset probe state
@@ -575,38 +774,80 @@ async function probeModels(){
   if(!token){showAuthModal();return;}
   var baseUrl=document.getElementById('sellBaseUrl').value.trim();
   var apiKey=document.getElementById('sellApiKey').value.trim();
-  if(!baseUrl||!apiKey){toast('请先填写 Base URL 和 API Key','error');return;}
+  if(!baseUrl){toast('请先填写 API Base URL','error');return;}
+  if(!apiKey){toast('请先填写 API Key（必须是你的真实 Key，不是虚拟 Key）','error');return;}
+  if(apiKey.startsWith('mk-')){toast('这是虚拟 Key，请使用你的真实 API Key 进行探测','error');return;}
   var btn=document.getElementById('probeBtn');
-  btn.disabled=true;btn.textContent='🔍 探测中...';
+  btn.disabled=true;btn.textContent='探测中...';
   try{
     var d=await api('/probe-models',{method:'POST',body:JSON.stringify({baseUrl:baseUrl,apiKey:apiKey})});
     probedModels=d.models||[];
+    if(probedModels.length===0){
+      toast('未检测到任何模型，请检查 Key 是否正确','error');
+      btn.textContent='探测可用模型';
+      btn.disabled=false;
+      return;
+    }
     document.getElementById('probeCount').textContent=probedModels.length;
     document.getElementById('selectedCount').textContent=probedModels.length;
     var list=document.getElementById('probeModelsList');
-    list.innerHTML=probedModels.map(function(m){
-      var name=m.id+(m.owned_by?' ('+m.owned_by+')':'');
-      return'<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px">'+
-        '<input type="checkbox" class="probe-model-check" data-model-id="'+m.id+'" checked onchange="updateSelectedCount()" style="flex-shrink:0">'+
-        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+m.id+'">'+name+'</span>'+
+    var html='';
+    for(var i=0;i<probedModels.length;i++){
+      var m=probedModels[i];
+      var name=(m.id||'unknown')+(m.owned_by?' ('+m.owned_by+')':'');
+      html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px">'+
+        '<input type="checkbox" class="probe-model-check" data-model-id="'+esc(m.id)+'" checked onchange="updateSelectedCount()" style="flex-shrink:0">'+
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(m.id)+'">'+esc(name)+'</span>'+
         '<span style="font-size:10px;color:var(--text3);white-space:nowrap">倍率</span>'+
-        '<input type="number" class="probe-rate" data-model="'+m.id+'" value="1" step="0.1" min="0" style="width:50px;padding:3px 6px;font-size:11px;background:var(--primary-bg);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);text-align:center">'+
+        '<input type="number" class="probe-rate" data-model="'+esc(m.id)+'" value="1" step="0.1" min="0" style="width:50px;padding:3px 6px;font-size:11px;background:var(--primary-bg);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);text-align:center">'+
       '</div>';
-    }).join('');
+    }
+    list.innerHTML=html;
     document.getElementById('probeResult').style.display='block';
     document.getElementById('manualModelsGroup').style.display='none';
-    btn.textContent='✅ 探测完成（'+probedModels.length+' 个模型）';
+    btn.textContent='探测完成（'+probedModels.length+' 个模型）';
     btn.disabled=false;
+    toast('检测到 '+probedModels.length+' 个模型，请勾选要上架的','success');
+    // Auto-fill description if empty
+    var descEl=document.getElementById('sellDescription');
+    if(descEl&&!descEl.value.trim()){
+      var modelNames=probedModels.slice(0,3).map(function(m){return m.id.split('/').pop();}).join('/');
+      descEl.value=modelNames+(probedModels.length>3?' 等 '+probedModels.length+' 个模型':'');
+    }
+    // Auto-fill model rates JSON
+    var rates={};
+    probedModels.forEach(function(m){rates[m.id]=1;});
+    document.getElementById('sellModelRates').value=JSON.stringify(rates);
   }catch(e){
-    toast('探测失败: '+e.message,'error');
-    btn.textContent='🔍 探测可用模型';
+    var msg=e.message||'探测失败';
+    if(msg.includes('401')||msg.includes('Unauthorized'))msg='API Key 无效或已过期';
+    else if(msg.includes('403'))msg='API Key 权限不足';
+    else if(msg.includes('timeout')||msg.includes('ECONNREFUSED'))msg='连接超时，请检查 Base URL 是否正确';
+    toast('探测失败: '+msg,'error');
+    btn.textContent='探测可用模型';
     btn.disabled=false;
   }
 }
 
 function selectAllModels(select){
-  document.querySelectorAll('.probe-model-check').forEach(function(cb){cb.checked=select;});
+  document.querySelectorAll('.probe-model-check').forEach(function(cb){
+    if(cb.closest('div[style*="display: none"]'))return; // skip hidden
+    cb.checked=select;
+  });
   updateSelectedCount();
+}
+
+function filterProbeModels(){
+  var search=(document.getElementById('probeSearch').value||'').toLowerCase();
+  document.querySelectorAll('.probe-model-check').forEach(function(cb){
+    var modelId=cb.dataset.modelId||'';
+    var row=cb.parentElement;
+    if(!search||modelId.toLowerCase().includes(search)){
+      row.style.display='';
+    }else{
+      row.style.display='none';
+    }
+  });
 }
 
 function updateSelectedCount(){
@@ -622,19 +863,25 @@ async function loadMyListings(){
     var mine=(d.data||[]).filter(function(l){return l.sellerName===(currentUser&&currentUser.username);});
     if(!mine.length){el.innerHTML='<div class="empty">你还没有上架商品</div>';return;}
     el.innerHTML=mine.map(function(l){
-      var vBadge=l.verification&&l.verification.verified?'<span class="badge badge-verified">✓ 已验证</span>':'<span class="badge badge-yellow">待验证</span>';
-      var sBadge=l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">🔒 独占</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">👥 共享</span>';
-      var healthDot=l.health&&l.health.healthy?'<span style="color:var(--success)">●</span>':'<span style="color:var(--error)">●</span>';
+      var vBadge=l.verification&&l.verification.verified?'<span class="badge badge-verified">已验证</span>':'<span class="badge badge-yellow">待验证</span>';
+      var sBadge=l.sharingMode==='exclusive'?'<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899">独占</span>':'<span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4">共享</span>';
+      var statusBadge=l.status==='active'?'<span class="badge badge-green">上架中</span>':'<span class="badge badge-red">已下架</span>';
+      var activeBuyers=l.buyerCount||0;
       return'<div class="card" style="margin-bottom:8px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'+
         '<div style="flex:1;min-width:0">'+
         '<div style="font-weight:600;font-size:13px">'+esc(l.description)+'</div>'+
-        '<div style="font-size:11px;color:var(--text3);margin-top:4px">'+healthDot+' 库存 '+l.remainingQuota+'/'+l.totalQuota+' | 已售 '+(l.soldCount||0)+' | '+(l.buyerCount||0)+' 人在用 | '+fmtPrice(l.pricePerRequest)+'/次</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:4px">'+
+        (l.sharingMode==='exclusive'?(activeBuyers>0?'独占 - 已售出':'独占 - 可购买'):'共享 - 剩余 '+l.remainingQuota+' 个 | '+activeBuyers+' 人已购买')+
+        ' | 单价 '+fmtPrice(l.pricePerRequest)+' 金币</div>'+
         '</div>'+
-        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+vBadge+sBadge+
-        '<span class="badge '+(l.status==='active'?'badge-green':'badge-red')+'">'+l.status+'</span>'+
-        '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();showRotateKey(\''+l.id+'\')">更换 Key</button>'+
-        '</div></div></div>';
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap">'+statusBadge+vBadge+sBadge+
+        (l.status==='active'?
+          '<button class="btn btn-sm" style="background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.3)" onclick="event.stopPropagation();delistProduct(\''+l.id+'\')">下架</button>':
+          '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();relistProduct(\''+l.id+'\')">重新上架</button>')+
+        '<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();showRotateKey(\''+l.id+'\')">更换 Key</button>'+
+        '</div></div>'+(activeBuyers>0?'<div style="font-size:11px;color:var(--warning);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">注意：下架后已购买用户的虚拟 Key 仍然有效，直到交易结束。</div>':'')+
+        '</div>';
     }).join('');
   }catch(e){toast(e.message,'error');}
 }
@@ -672,24 +919,74 @@ async function disputeOrder(id){var reason=prompt('请输入申诉原因：');if
 async function loadWallet(){
   if(!token)return;
   try{
-    var bal=await api('/wallet/balance');
-    document.getElementById('walletBalance').textContent=bal.balance.toFixed(2);
-    document.getElementById('walletFrozen').textContent=(bal.frozenBalance||0).toFixed(2);
-    document.getElementById('walletSpending').textContent=(bal.totalSpending||0).toFixed(2);
-    document.getElementById('walletEarnings').textContent=(bal.totalEarnings||0).toFixed(2);
-    var txns=await api('/wallet/transactions');
-    var el=document.getElementById('transactionsList');
-    if(!txns.data||!txns.data.length){el.innerHTML='<div class="empty">暂无交易记录</div>';return;}
-    var sorted=txns.data.sort(function(a,b){return b.createdAt-a.createdAt;});
-    el.innerHTML=sorted.map(function(t){
-      var color=t.amount>=0?'var(--success)':'var(--danger)';
-      var sign=t.amount>=0?'+':'';
-      var icon=t.type==='freeze'?'🔒':t.type==='refund'?'↩️':t.type==='earning'?'💰':t.type==='topup'?'🎁':'🛒';
-      return'<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px">'+
+    // Load coin balance
+    var coin=await api('/coin/balance');
+    document.getElementById('walletCoins').textContent=fmtCoins(coin.coins);
+    document.getElementById('walletFrozenCoins').textContent=fmtCoins(coin.frozenCoins);
+    document.getElementById('walletFeeCredits').textContent=fmtCoins(coin.feeCredits);
+    document.getElementById('walletCoinSpending').textContent=fmtCoins(coin.totalCoinSpending);
+    document.getElementById('walletCoinEarnings').textContent=fmtCoins(coin.totalCoinEarnings);
+    // Load coin transactions
+    var txns=await api('/coin/transactions');
+    var el=document.getElementById('coinTransactions');
+    if(!txns.data||!txns.data.length){el.innerHTML='<div class="empty">暂无金币流水</div>';return;}
+    el.innerHTML=txns.data.map(function(t){
+      var color=t.coins>=0?'var(--success)':'var(--danger)';
+      var sign=t.coins>=0?'+':'';
+      var icon=t.type==='earn'?'🎁':t.type==='freeze'?'🔒':t.type==='refund'?'↩️':t.type==='earning'?'💰':t.type==='fee'?'🏦':t.type==='spend'?'🛒':'📤';
+      return'<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-bottom:6px">'+
         '<div><div style="font-size:13px">'+icon+' '+esc(t.description)+'</div>'+
         '<div style="font-size:11px;color:var(--text3)">'+fmtTime(t.createdAt)+'</div></div>'+
-        '<div style="font-weight:700;color:'+color+'">'+sign+t.amount.toFixed(2)+'</div></div>';
+        '<div style="font-weight:700;color:'+color+'">'+sign+t.coins+' 金币</div></div>';
     }).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+function selectRecharge(amount){
+  document.getElementById('rechargeAmount').value=amount;
+  document.querySelectorAll('.recharge-btn').forEach(function(b){
+    b.style.background=parseInt(b.textContent)===amount?'var(--primary-bg)':'';
+    b.style.borderColor=parseInt(b.textContent)===amount?'var(--primary)':'';
+  });
+}
+
+async function doRecharge(){
+  var amount=parseInt(document.getElementById('rechargeAmount').value);
+  if(!amount||amount<1){toast('请选择或输入充值金额','error');return;}
+  if(!token){showAuthModal();return;}
+  try{
+    // Create order
+    var r=await api('/coin/purchase',{method:'POST',body:JSON.stringify({amount:amount})});
+    var orderId=r.order.id;
+    // Simulated payment (instant)
+    var pay=await api('/coin/pay',{method:'POST',body:JSON.stringify({orderId:orderId})});
+    toast(pay.message,'success');
+    document.getElementById('rechargeAmount').value='';
+    document.querySelectorAll('.recharge-btn').forEach(function(b){b.style.background='';b.style.borderColor='';});
+    loadWallet();
+  }catch(e){toast(e.message,'error');}
+}
+
+async function doRedeem(){
+  var code=document.getElementById('redeemCode').value.trim();
+  if(!code){toast('请输入兑换码','error');return;}
+  try{
+    var r=await api('/coin/redeem',{method:'POST',body:JSON.stringify({code:code})});
+    toast(r.message,'success');
+    document.getElementById('redeemCode').value='';
+    loadWallet();
+  }catch(e){toast(e.message,'error');}
+}
+
+async function doWithdraw(){
+  var coins=parseInt(document.getElementById('withdrawAmount').value);
+  if(!coins||coins<1){toast('请输入提现金币数','error');return;}
+  if(!confirm('确定申请提现 '+coins+' 金币？'))return;
+  try{
+    var r=await api('/coin/withdraw',{method:'POST',body:JSON.stringify({coins:coins})});
+    toast(r.message,'success');
+    document.getElementById('withdrawAmount').value='';
+    loadWallet();
   }catch(e){toast(e.message,'error');}
 }
 

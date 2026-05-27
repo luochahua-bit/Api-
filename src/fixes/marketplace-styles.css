@@ -111,6 +111,16 @@
   cursor: pointer;
 }
 
+/* ===== Recharge Buttons ===== */
+.recharge-btn {
+  min-width: 60px;
+  transition: all 0.15s !important;
+}
+.recharge-btn:hover {
+  border-color: var(--primary) !important;
+  background: var(--primary-bg) !important;
+}
+
 /* ===== Provider Filter Cards ===== */
 .provider-filter-card {
   transition: border-color 0.1s, background 0.1s, box-shadow 0.1s, opacity 0.1s !important;
@@ -131,6 +141,25 @@
 }
 .listing-card {
   will-change: display;
+}
+
+/* ===== Card Footer Responsive ===== */
+.listing-card .card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .listing-card .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .listing-card .card-footer > div:last-child {
+    align-self: flex-end;
+  }
 }
 
 /* ===== Mobile: 480px ===== */

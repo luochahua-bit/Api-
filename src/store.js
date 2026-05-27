@@ -15,6 +15,14 @@ class Store {
       reviews: [],
       transactions: [],
       marketApiKeys: [], // buyer API keys for marketplace proxy
+      // Coin system
+      redemptionCodes: [], // { code, coins, usedBy, usedAt, createdAt, createdBy }
+      withdrawals: [],     // { id, userId, coins, status, createdAt, processedAt, note }
+      coinTransactions: [], // { id, userId, type, coins, description, createdAt }
+      // Email verification
+      verificationCodes: [], // { id, email, code, expiresAt, used, createdAt }
+      // Payment orders
+      paymentOrders: [],   // { id, userId, amount, status, createdAt, paidAt }
     };
     this.saveTimer = null;
     this.load();
@@ -25,6 +33,12 @@ class Store {
       if (fs.existsSync(config.dbPath)) {
         const data = JSON.parse(fs.readFileSync(config.dbPath, 'utf8'));
         this.state = { ...this.state, ...data };
+        // Ensure coin system arrays exist for older databases
+        this.state.redemptionCodes = this.state.redemptionCodes || [];
+        this.state.withdrawals = this.state.withdrawals || [];
+        this.state.coinTransactions = this.state.coinTransactions || [];
+        this.state.verificationCodes = this.state.verificationCodes || [];
+        this.state.paymentOrders = this.state.paymentOrders || [];
         console.log('[Store] Loaded data from', config.dbPath);
       } else {
         this.seedFromEnv();
@@ -78,6 +92,11 @@ class Store {
         password: bcrypt.hashSync('demo123', 10),
         email: 'demo@example.com',
         role: 'seller',
+        coins: 500,
+        frozenCoins: 0,
+        totalCoinEarnings: 200,
+        totalCoinSpending: 0,
+        feeCredits: 0,
         balance: 100,
         frozenBalance: 0,
         totalEarnings: 50,
@@ -94,6 +113,11 @@ class Store {
         password: bcrypt.hashSync('demo123', 10),
         email: 'buyer@example.com',
         role: 'buyer',
+        coins: 200,
+        frozenCoins: 0,
+        totalCoinEarnings: 0,
+        totalCoinSpending: 0,
+        feeCredits: 50,
         balance: 50,
         frozenBalance: 0,
         totalEarnings: 0,
@@ -453,6 +477,190 @@ class Store {
     this.state.marketApiKeys[idx] = { ...this.state.marketApiKeys[idx], ...changes };
     this.save();
     return true;
+  }
+
+  // ========== Coin System ==========
+
+  // Add coins to user balance
+  addCoins(userId, amount, description) {
+    const user = this.getUserById(userId);
+    if (!user) return false;
+    user.coins = (user.coins || 0) + amount;
+    this.addCoinTransaction(userId, 'earn', amount, description);
+    this.save();
+    return true;
+  }
+
+  // Deduct coins from user balance
+  deductCoins(userId, amount, description) {
+    const user = this.getUserById(userId);
+    if (!user || (user.coins || 0) < amount) return false;
+    user.coins -= amount;
+    this.addCoinTransaction(userId, 'spend', -amount, description);
+    this.save();
+    return true;
+  }
+
+  // Freeze coins as transaction deposit
+  freezeCoins(userId, amount, description) {
+    const user = this.getUserById(userId);
+    if (!user || (user.coins || 0) < amount) return false;
+    user.coins -= amount;
+    user.frozenCoins = (user.frozenCoins || 0) + amount;
+    this.addCoinTransaction(userId, 'freeze', -amount, description);
+    this.save();
+    return true;
+  }
+
+  // Release frozen coins to another user (after transaction complete)
+  releaseCoins(fromUserId, toUserId, amount, fee, description) {
+    if (amount <= 0) return false;
+    const fromUser = this.getUserById(fromUserId);
+    const toUser = this.getUserById(toUserId);
+    if (!fromUser || !toUser) return false;
+    if ((fromUser.frozenCoins || 0) < amount) return false;
+
+    fromUser.frozenCoins -= amount;
+    const sellerGets = amount - fee;
+    toUser.coins = (toUser.coins || 0) + sellerGets;
+    toUser.totalCoinEarnings = (toUser.totalCoinEarnings || 0) + sellerGets;
+    fromUser.totalCoinSpending = (fromUser.totalCoinSpending || 0) + amount;
+
+    this.addCoinTransaction(fromUserId, 'purchase', -amount, description + ' (买家扣款)');
+    this.addCoinTransaction(toUserId, 'earning', sellerGets, description + ' (卖家收款, 服务费' + fee + '金币)');
+    if (fee > 0) {
+      this.addCoinTransaction('platform', 'fee', fee, description + ' (平台服务费)');
+    }
+    this.save();
+    return true;
+  }
+
+  // Refund frozen coins back to buyer
+  refundCoins(userId, amount, description) {
+    const user = this.getUserById(userId);
+    if (!user) return false;
+    if ((user.frozenCoins || 0) < amount) return false;
+    user.frozenCoins -= amount;
+    user.coins = (user.coins || 0) + amount;
+    this.addCoinTransaction(userId, 'refund', amount, description);
+    this.save();
+    return true;
+  }
+
+  // Redemption codes
+  getRedemptionCodes() { return this.state.redemptionCodes; }
+
+  addRedemptionCode(code) {
+    this.state.redemptionCodes.push(code);
+    this.save();
+    return true;
+  }
+
+  useRedemptionCode(codeStr, userId) {
+    const code = this.state.redemptionCodes.find(c => c.code === codeStr && !c.usedBy);
+    if (!code) return { success: false, error: '兑换码无效或已使用' };
+    code.usedBy = userId;
+    code.usedAt = Date.now();
+    this.addCoins(userId, code.coins, '兑换码 ' + codeStr);
+    this.save();
+    return { success: true, coins: code.coins };
+  }
+
+  // Withdrawals
+  getWithdrawals() { return this.state.withdrawals; }
+
+  getWithdrawalsByUser(userId) {
+    return this.state.withdrawals.filter(w => w.userId === userId);
+  }
+
+  addWithdrawal(withdrawal) {
+    this.state.withdrawals.push(withdrawal);
+    this.save();
+    return true;
+  }
+
+  updateWithdrawal(id, changes) {
+    const idx = this.state.withdrawals.findIndex(w => w.id === id);
+    if (idx === -1) return false;
+    this.state.withdrawals[idx] = { ...this.state.withdrawals[idx], ...changes };
+    this.save();
+    return true;
+  }
+
+  // Coin transactions log
+  getCoinTransactions(userId) {
+    if (userId) return this.state.coinTransactions.filter(t => t.userId === userId);
+    return this.state.coinTransactions;
+  }
+
+  addCoinTransaction(userId, type, coins, description) {
+    this.state.coinTransactions.push({
+      id: 'ctx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      userId, type, coins, description,
+      createdAt: Date.now(),
+    });
+    // Keep last 5000 records
+    if (this.state.coinTransactions.length > 5000) {
+      this.state.coinTransactions = this.state.coinTransactions.slice(-5000);
+    }
+  }
+
+  // ========== Email Verification ==========
+
+  addVerificationCode(entry) {
+    // Remove old codes for same email
+    this.state.verificationCodes = this.state.verificationCodes.filter(c => c.email !== entry.email);
+    this.state.verificationCodes.push(entry);
+    this.save();
+  }
+
+  getValidVerificationCode(email, code) {
+    const now = Date.now();
+    return this.state.verificationCodes.find(c =>
+      c.email === email && c.code === code && !c.used && c.expiresAt > now
+    );
+  }
+
+  markCodeUsed(email) {
+    const idx = this.state.verificationCodes.findIndex(c => c.email === email && !c.used);
+    if (idx !== -1) {
+      this.state.verificationCodes[idx].used = true;
+      this.save();
+    }
+  }
+
+  cleanExpiredCodes() {
+    const now = Date.now();
+    this.state.verificationCodes = this.state.verificationCodes.filter(c => c.expiresAt > now);
+    this.save();
+  }
+
+  isEmailVerified(email) {
+    const user = this.state.users.find(u => u.email === email);
+    return user ? (user.emailVerified === true) : false;
+  }
+
+  // ========== Payment Orders ==========
+
+  addPaymentOrder(order) {
+    this.state.paymentOrders.push(order);
+    this.save();
+  }
+
+  getPaymentOrder(id) {
+    return this.state.paymentOrders.find(o => o.id === id);
+  }
+
+  updatePaymentOrder(id, changes) {
+    const idx = this.state.paymentOrders.findIndex(o => o.id === id);
+    if (idx === -1) return false;
+    this.state.paymentOrders[idx] = { ...this.state.paymentOrders[idx], ...changes };
+    this.save();
+    return true;
+  }
+
+  getUserPaymentOrders(userId) {
+    return this.state.paymentOrders.filter(o => o.userId === userId);
   }
 }
 

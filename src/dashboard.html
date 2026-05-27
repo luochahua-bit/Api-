@@ -374,6 +374,12 @@
   <link rel="manifest" href="/fixes/manifest.json">
   <link rel="icon" href="/fixes/icon-192.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/fixes/dashboard-styles.css">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) { regs.forEach(function(r) { r.unregister(); }); });
+      if ('caches' in window) { caches.keys().then(function(n) { n.forEach(function(k) { caches.delete(k); }); }); }
+    }
+  </script>
 </head>
 <body>
   <div class="header">
@@ -410,11 +416,11 @@
     </div>
 
     <div class="tabs">
-      <button class="tab active" onclick="showTab('user',this)" id="tabUserBtn">管理面板</button>
       <button class="tab" onclick="showTab('providers',this)">提供商</button>
       <button class="tab" onclick="showTab('logs',this)">请求日志</button>
       <button class="tab" onclick="showTab('playground',this)">测试台</button>
       <button class="tab" onclick="showTab('guide',this)">配置指南</button>
+      <button class="tab active" onclick="showTab('user',this)" id="tabUserBtn">个人中心</button>
     </div>
 
     <!-- User Center -->
@@ -443,7 +449,7 @@
           </div>
 
           <!-- Stats Grid -->
-          <div class="user-grid" style="grid-template-columns: repeat(5, 1fr);">
+          <div class="user-grid" style="grid-template-columns: repeat(3, 1fr);">
             <div class="user-stat">
               <div class="user-stat-icon">💰</div>
               <div class="user-stat-val" style="color:var(--success)" id="uBalance">0</div>
@@ -523,8 +529,8 @@
               <!-- Model Distribution -->
               <div class="chart-container">
                 <div class="chart-title">📊 模型分布</div>
-                <div class="bar-chart" id="modelDistChart">
-                  <div style="color:var(--text-secondary);font-size:11px;width:100%;text-align:center;padding:40px 0">暂无数据</div>
+                <div class="bar-chart" id="modelDistChart" style="min-height:230px;display:flex;align-items:center;justify-content:center">
+                  <div style="color:var(--text-secondary);font-size:11px;width:100%;text-align:center;padding:80px 0">暂无数据</div>
                 </div>
               </div>
             </div>
@@ -542,7 +548,7 @@
               <div class="chart-container">
                 <div class="chart-title">💡 建议操作</div>
                 <div id="suggestions">
-                  <div class="suggestion-card" onclick="showTab('playground',document.querySelectorAll('.tab')[3])">
+                  <div class="suggestion-card" onclick="showTab('playground',document.querySelectorAll('.tab')[2])">
                     <div class="suggestion-icon">🧪</div>
                     <div class="suggestion-text">
                       <strong>测试 API</strong>
@@ -556,7 +562,7 @@
                       <span>发现更多供应商和模型</span>
                     </div>
                   </div>
-                  <div class="suggestion-card" onclick="showTab('guide',document.querySelectorAll('.tab')[4])">
+                  <div class="suggestion-card" onclick="showTab('guide',document.querySelectorAll('.tab')[3])">
                     <div class="suggestion-icon">📖</div>
                     <div class="suggestion-text">
                       <strong>配置指南</strong>
@@ -627,8 +633,8 @@
       <div class="section-header">
         <div class="section-title">提供商 & 模型 <span class="count" id="providerCount">0</span></div>
         <div style="display:flex;gap:4px;align-items:center">
-          <input type="text" id="modelSearch" placeholder="搜索模型..." oninput="filterModels()" style="width:160px;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:11px;outline:none">
-          <select id="modelFilter" onchange="filterModels()" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:11px;outline:none">
+          <input type="text" id="modelSearch" placeholder="搜索模型..." oninput="_modelPage=0;filterModels()" style="width:160px;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:11px;outline:none">
+          <select id="modelFilter" onchange="_modelPage=0;filterModels()" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:11px;outline:none">
             <option value="">全部</option>
             <option value="free">免费</option>
             <option value="paid">付费</option>
@@ -806,6 +812,12 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
 
   <script>
     const API_BASE = '';
+
+    // XSS escape utility
+    function _esc(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
 
     let adminToken = localStorage.getItem('relay_admin_token') || '';
     let apiKeys = [];
@@ -1001,6 +1013,18 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     function selectProvider(name) {
       selectedProvider = selectedProvider === name ? null : name;
       loadDashboard();
+      // Visual feedback on provider cards
+      document.querySelectorAll('.provider-card').forEach(card => {
+        const nameEl = card.querySelector('.provider-name');
+        if (!nameEl) return;
+        const pName = nameEl.textContent.split(' (')[0].trim();
+        const isSel = selectedProvider === pName;
+        card.style.borderColor = isSel ? 'var(--accent)' : '';
+        card.style.background = isSel ? 'var(--bg-hover)' : '';
+        card.style.boxShadow = isSel ? '0 0 12px rgba(59,130,246,0.15)' : '';
+        const icon = card.querySelector('.provider-icon');
+        if (icon) { icon.style.background = isSel ? 'var(--accent)' : ''; icon.style.color = isSel ? 'white' : ''; }
+      });
     }
 
     function loadDashboard() {
@@ -1008,45 +1032,280 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     function toggleFreeFilter() {
-      toggleFreeFilter._active = !toggleFreeFilter._active;
-      const btn = document.getElementById('freeFilterBtn');
+      _freeFilterActive = !_freeFilterActive;
+      applyFreeFilter();
+    }
+
+    function applyFreeFilter() {
+      var btn = document.getElementById('freeFilterBtn');
       if (btn) {
-        btn.style.background = toggleFreeFilter._active ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.1)';
-        btn.style.borderColor = toggleFreeFilter._active ? '#10b981' : 'rgba(16,185,129,0.2)';
-        btn.textContent = toggleFreeFilter._active ? '🎁 仅免费' : '🎁 免费';
+        btn.style.background = _freeFilterActive ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.1)';
+        btn.style.borderColor = _freeFilterActive ? '#10b981' : 'rgba(16,185,129,0.2)';
+        btn.textContent = _freeFilterActive ? '仅免费' : '免费';
       }
-      document.querySelectorAll('.provider-card').forEach(card => {
-        const nameEl = card.querySelector('.provider-name');
+      document.querySelectorAll('.provider-card').forEach(function(card) {
+        var nameEl = card.querySelector('.provider-name');
         if (!nameEl) return;
-        const name = nameEl.textContent.split(' (')[0].trim();
-        const freeCount = allModels.filter(m => m.provider === name && m.free).length;
-        card.style.opacity = (toggleFreeFilter._active && freeCount === 0) ? '0.25' : '';
-        card.style.pointerEvents = (toggleFreeFilter._active && freeCount === 0) ? 'none' : '';
+        var name = nameEl.textContent.split(' (')[0].trim();
+        var stats = _providerStats[name] || { free: 0 };
+        if (_freeFilterActive && stats.free === 0) {
+          card.style.opacity = '0.25';
+          card.style.pointerEvents = 'none';
+        } else {
+          card.style.opacity = '';
+          card.style.pointerEvents = '';
+        }
       });
     }
+
+    var _modelPage = 0;
+    var _modelExpanded = false;
+    var _providerStats = {};
+    var _freeFilterActive = false;
+    var _modelQualityCache = {};
+    var _lastProviderFilter = '';
+    var _reorderPending = false;
+
+    // Quality scoring for models
+    function getModelQuality(id) {
+      if (_modelQualityCache[id] !== undefined) return _modelQualityCache[id];
+      var m = (id || '').toLowerCase();
+      var score = 50; // base score
+
+      // High-tier models
+      if (m.includes('405b') || m.includes('120b') || m.includes('235b')) score += 40;
+      else if (m.includes('70b') || m.includes('72b')) score += 30;
+      else if (m.includes('32b') || m.includes('34b') || m.includes('33b')) score += 20;
+      else if (m.includes('27b') || m.includes('26b') || m.includes('30b')) score += 15;
+      else if (m.includes('14b') || m.includes('15b')) score += 10;
+      else if (m.includes('8b') || m.includes('7b')) score += 5;
+      else if (m.includes('3b') || m.includes('1b') || m.includes('nano')) score -= 10;
+
+      // Premium model names
+      if (m.includes('gpt-4o') && !m.includes('mini')) score += 35;
+      else if (m.includes('gpt-4o-mini')) score += 15;
+      else if (m.includes('claude-opus') || m.includes('claude-sonnet')) score += 35;
+      else if (m.includes('claude-haiku')) score += 15;
+      else if (m.includes('deepseek-v3') || m.includes('deepseek-v4')) score += 30;
+      else if (m.includes('deepseek-r1')) score += 35;
+      else if (m.includes('gemini-2.5') || m.includes('gemini-3')) score += 30;
+      else if (m.includes('gemini-2.0') || m.includes('gemini-1.5')) score += 20;
+      else if (m.includes('llama-3.3') || m.includes('llama-4')) score += 20;
+      else if (m.includes('qwen3') || m.includes('qwen2.5')) score += 15;
+      else if (m.includes('mistral-large') || m.includes('mistral-medium')) score += 15;
+      else if (m.includes('gemma-4') || m.includes('gemma-3')) score += 10;
+
+      // Bonus for "fast" / "instruct" variants
+      if (m.includes('instruct')) score += 5;
+      if (m.includes('flash') || m.includes('instant')) score += 3;
+
+      // Penalty for distill / quantized
+      if (m.includes('distill')) score -= 15;
+      if (m.includes('awq') || m.includes('gptq') || m.includes('gguf')) score -= 10;
+
+      _modelQualityCache[id] = score;
+      return score;
+    }
+
+    function buildProviderStats() {
+      _providerStats = {};
+      _modelQualityCache = {};
+      // First pass: compute quality for all models
+      allModels.forEach(m => {
+        m._quality = getModelQuality(m.id);
+      });
+      // Second pass: aggregate per provider
+      allModels.forEach(m => {
+        var p = m.provider || 'unknown';
+        if (!_providerStats[p]) _providerStats[p] = {
+          total: 0, free: 0, paid: 0,
+          freeQualitySum: 0, paidQualitySum: 0,
+          highQualityCount: 0,
+          freeAvgQ: 0, paidAvgQ: 0, avgQuality: 0
+        };
+        var s = _providerStats[p];
+        s.total++;
+        var q = m._quality;
+        if (m.free) { s.free++; s.freeQualitySum += q; }
+        else { s.paid++; s.paidQualitySum += q; }
+        if (q >= 80) s.highQualityCount++;
+      });
+      // Calculate averages once
+      Object.keys(_providerStats).forEach(function(p) {
+        var s = _providerStats[p];
+        s.freeAvgQ = s.free > 0 ? s.freeQualitySum / s.free : 0;
+        s.paidAvgQ = s.paid > 0 ? s.paidQualitySum / s.paid : 0;
+        s.avgQuality = s.total > 0 ? (s.freeQualitySum + s.paidQualitySum) / s.total : 0;
+        s.highQualityRatio = s.total > 0 ? s.highQualityCount / s.total : 0;
+      });
+      loadMarketplaceRatings();
+    }
+
+    var _providerRatings = {}; // provider name -> { rating, count }
+    var _ratingsLoaded = false;
+
+    function loadMarketplaceRatings() {
+      if (_ratingsLoaded) return;
+      fetch('/api/market/listings?limit=100')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          _ratingsLoaded = true; // only mark as loaded on success
+          var listings = d.data || [];
+          var sellerMap = {};
+          listings.forEach(function(l) {
+            if (l.sellerName && l.rating) {
+              if (!sellerMap[l.sellerName]) sellerMap[l.sellerName] = { total: 0, count: 0 };
+              sellerMap[l.sellerName].total += l.rating;
+              sellerMap[l.sellerName].count++;
+            }
+          });
+          // Map seller ratings to providers (based on listing models)
+          listings.forEach(function(l) {
+            if (!l.models || !l.models.length) return;
+            var provider = getProviderFromModelName(l.models[0]);
+            if (l.rating && (!_providerRatings[provider] || l.rating > _providerRatings[provider].rating)) {
+              _providerRatings[provider] = { rating: l.rating, count: l.ratingCount || 0 };
+            }
+          });
+        })
+        .catch(function() {});
+    }
+
+    function getProviderFromModelName(model) {
+      if (!model) return 'unknown';
+      var m = model.toLowerCase();
+      if (m.includes(':free') || m.includes('openrouter')) return 'openrouter';
+      if (m.includes('groq')) return 'groq';
+      if (m.includes('cerebras')) return 'cerebras';
+      if (m.includes('gemini') || m.includes('gemma')) return 'google';
+      if (m.includes('deepseek') || m.includes('sambanova')) return 'sambanova';
+      if (m.includes('mistral')) return 'mistral';
+      if (m.includes('nvidia') || m.includes('nemotron')) return 'nvidia';
+      if (m.includes('command') || m.includes('cohere')) return 'cohere';
+      if (m.includes('gpt') || m.includes('llama-4')) return 'github';
+      return 'other';
+    }
+
+    var _modelsRendered = false;
 
     function filterModels() {
       const search = document.getElementById('modelSearch').value.toLowerCase();
       const filter = document.getElementById('modelFilter').value;
-      const filtered = allModels.filter(m => {
-        const matchSearch = m.id.toLowerCase().includes(search) || (m.name || '').toLowerCase().includes(search);
-        const matchFilter = filter === '' || (filter === 'free' && m.free) || (filter === 'paid' && !m.free);
-        const matchProvider = !selectedProvider || m.provider === selectedProvider;
-        return matchSearch && matchFilter && matchProvider;
+      const mg = document.getElementById('modelsGrid');
+
+      // First time: pre-render ALL model cards with data attributes
+      if (!_modelsRendered || mg.children.length === 0) {
+        _modelsRendered = true;
+        // Sort all models by quality once
+        var sorted = allModels.slice().sort(function(a, b) {
+          if (a.free !== b.free) return a.free ? -1 : 1;
+          return (b._quality || 0) - (a._quality || 0);
+        });
+        var html = '';
+        sorted.forEach(function(m) {
+          html += '<div class="model-card" data-free="' + (m.free ? '1' : '0') + '" data-provider="' + (m.provider || '') + '" data-name="' + (m.id || '').toLowerCase() + '">' +
+            (m.free ? '<span class="model-free">FREE</span>' : '<span class="model-paid">PAID</span>') +
+            '<span class="model-name">' + (m.id || '') + '</span>' +
+            (m.provider ? '<span class="model-provider-tag">' + m.provider + '</span>' : '') +
+            '</div>';
+        });
+        html += '<div class="model-toggle-row" style="grid-column:1/-1;text-align:center;padding:10px;display:none"><button class="btn btn-sm btn-outline" id="modelToggleBtn" onclick="toggleModelExpand()">显示更多</button></div>';
+        mg.innerHTML = html;
+      }
+
+      // Toggle visibility based on filter (pure CSS, no DOM creation)
+      var visibleCount = 0;
+      var cards = mg.querySelectorAll('.model-card');
+      for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var isFree = card.dataset.free === '1';
+        var provider = card.dataset.provider;
+        var name = card.dataset.name;
+        var matchSearch = !search || name.includes(search);
+        var matchFilter = filter === '' || (filter === 'free' && isFree) || (filter === 'paid' && !isFree);
+        var matchProvider = !selectedProvider || provider === selectedProvider;
+        if (matchSearch && matchFilter && matchProvider) {
+          card.style.display = '';
+          visibleCount++;
+          // Show/hide based on expand state
+          if (!_modelExpanded && visibleCount > 12) {
+            card.style.display = 'none';
+          }
+        } else {
+          card.style.display = 'none';
+        }
+      }
+
+      // Toggle row
+      var toggleRow = mg.querySelector('.model-toggle-row');
+      if (toggleRow) {
+        if (visibleCount > 12) {
+          toggleRow.style.display = '';
+          var btn = document.getElementById('modelToggleBtn');
+          if (btn) btn.textContent = _modelExpanded ? '收起' : '显示更多 (' + visibleCount + ')';
+        } else {
+          toggleRow.style.display = 'none';
+        }
+      }
+      document.getElementById('modelCount').textContent = visibleCount;
+
+      // Defer provider reorder
+      requestAnimationFrame(function() {
+        if (!_reorderPending) {
+          _reorderPending = true;
+          requestAnimationFrame(function() {
+            _reorderPending = false;
+            reorderProviders(document.getElementById('modelFilter').value);
+          });
+        }
       });
-      renderModels(filtered);
     }
 
-    function renderModels(models) {
-      const mg = document.getElementById('modelsGrid');
-      mg.innerHTML = models.map(m => `
-        <div class="model-card">
-          ${m.free ? '<span class="model-free">FREE</span>' : '<span class="model-paid">PAID</span>'}
-          <span class="model-name">${m.id}</span>
-          ${m._provider ? `<span class="model-provider-tag">${m._provider}</span>` : ''}
-        </div>
-      `).join('') || '<p style="color:var(--text-secondary);font-size:12px;padding:20px">无匹配模型</p>';
-      document.getElementById('modelCount').textContent = models.length;
+    function toggleModelExpand() {
+      _modelExpanded = !_modelExpanded;
+      _lastProviderFilter = ''; // force re-filter
+      filterModels();
+    }
+
+    // Called when allModels changes - force re-render
+    function resetModelCache() {
+      _modelsRendered = false;
+    }
+
+    // Provider scoring: all lookups are O(1), batch DOM reorder
+    var _lastProviderFilter = '';
+    function reorderProviders(filter) {
+      var grid = document.getElementById('providersGrid');
+      if (!grid) return;
+      var cards = Array.from(grid.querySelectorAll('.provider-card'));
+      cards.forEach(function(c) {
+        var nameEl = c.querySelector('.provider-name');
+        if (!nameEl) { c._sortVal = 0; return; }
+        var name = nameEl.textContent.split(' (')[0].trim();
+        var s = _providerStats[name];
+        if (!s) { c._sortVal = 0; return; }
+        var statusEl = c.querySelector('.provider-status');
+        var isHealthy = statusEl && statusEl.classList.contains('active');
+        var health = isHealthy ? 100000 : 0;
+        var rating = (_providerRatings[name] ? _providerRatings[name].rating : 0) * 1000;
+        // Latency scoring: lower = better, max bonus 5000
+        var latencyEl = c.querySelector('[data-field="latency"]');
+        var latency = 0;
+        if (latencyEl) {
+          var lt = parseInt(latencyEl.textContent);
+          if (!isNaN(lt)) latency = lt;
+        }
+        var latencyScore = latency > 0 ? Math.max(0, 5000 - latency * 10) : 0;
+        var score = 0;
+        if (filter === 'free') score = health + rating + latencyScore + s.free * 100 + s.freeAvgQ * 10;
+        else if (filter === 'paid') score = health + rating + latencyScore + s.paid * 100 + s.paidAvgQ * 10;
+        else score = health + rating + latencyScore + s.total * 50 + s.avgQuality * 10 + s.highQualityRatio * 500;
+        c._sortVal = score;
+      });
+      cards.sort(function(a, b) { return (b._sortVal || 0) - (a._sortVal || 0); });
+      var frag = document.createDocumentFragment();
+      cards.forEach(function(c) { frag.appendChild(c); });
+      grid.appendChild(frag);
     }
 
     // ========== User Center ==========
@@ -1245,8 +1504,8 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         if (completedOrders.length === 0) {
           suggestions.push({ icon: '🛒', title: '浏览市场', desc: '发现更多供应商和模型', action: "window.location='/market'" });
         }
-        suggestions.push({ icon: '🧪', title: '测试 API', desc: '在测试台中试用免费模型', action: "showTab('playground',document.querySelectorAll('.tab')[3])" });
-        suggestions.push({ icon: '📖', title: '配置指南', desc: '获取免费 API 密钥', action: "showTab('guide',document.querySelectorAll('.tab')[4])" });
+        suggestions.push({ icon: '🧪', title: '测试 API', desc: '在测试台中试用免费模型', action: "showTab('playground',document.querySelectorAll('.tab')[2])" });
+        suggestions.push({ icon: '📖', title: '配置指南', desc: '获取免费 API 密钥', action: "showTab('guide',document.querySelectorAll('.tab')[3])" });
         if (currentUser.role === 'buyer') {
           suggestions.push({ icon: '🏪', title: '成为卖家', desc: '上架您的 API Key 赚取收益', action: "window.location='/market'" });
         }
@@ -1265,6 +1524,8 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     let _refreshing = false;
+    let _providersBuilt = false;
+
     async function refreshStats() {
       if (_refreshing) return;
       _refreshing = true;
@@ -1272,9 +1533,10 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const [statsRes, modelsRes] = await Promise.all([fetch(API_BASE + '/api/stats'), fetch(API_BASE + '/api/models')]);
         const stats = await statsRes.json();
         const models = await modelsRes.json();
+        const modelsChanged = JSON.stringify(allModels.map(m=>m.id)) !== JSON.stringify((models.data||[]).map(m=>m.id));
         allModels = models.data || [];
 
-        // Update user panel stats if logged in
+        // Update text stats (lightweight)
         const total = stats.totalRequests || 0;
         const errors = stats.totalErrors || 0;
         const uptimeEl = document.getElementById('uptimeText');
@@ -1287,7 +1549,6 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const providerCountEl = document.getElementById('providerCount');
         if (providerCountEl) providerCountEl.textContent = providers.length;
 
-        // Update user center stats
         const uTotalReqsEl = document.getElementById('uTotalReqs');
         const uErrorRateEl = document.getElementById('uErrorRate');
         const uActiveProvidersEl = document.getElementById('uActiveProviders');
@@ -1295,34 +1556,24 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         if (uErrorRateEl) uErrorRateEl.textContent = (total > 0 ? ((errors / total) * 100).toFixed(1) : '0') + '%';
         if (uActiveProvidersEl) uActiveProvidersEl.textContent = active;
 
-        document.getElementById('providersGrid').innerHTML = providers.map(p => {
-          const status = p.blocked ? 'blocked' : (p.health?.healthy === false ? 'unhealthy' : 'active');
-          const statusText = p.blocked ? '已阻断' : (p.health?.healthy === false ? '不健康' : '正常');
-          const latency = p.health?.latency ? p.health.latency + 'ms' : '--';
-          const failures = p.health?.consecutiveFailures || 0;
-          const pModels = allModels.filter(m => m.provider === p.name);
-          const isSelected = selectedProvider === p.name;
-          return `
-            <div class="provider-card" style="cursor:pointer;${isSelected ? 'border-color:var(--accent);background:var(--bg-hover);box-shadow:0 0 12px rgba(59,130,246,0.15)' : ''}" onclick="selectProvider('${p.name}')">
-              <div class="provider-icon" style="background:${isSelected ? 'var(--accent)' : status === 'active' ? 'rgba(59,130,246,0.12)' : status === 'blocked' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)'};color:${isSelected ? 'white' : status === 'active' ? 'var(--accent)' : status === 'blocked' ? 'var(--error)' : 'var(--warning)'}">
-                ${p.name.charAt(0).toUpperCase()}
-              </div>
-              <div class="provider-info">
-                <div class="provider-name">${p.name} <span style="font-size:10px;color:var(--text-secondary);font-weight:400">(${pModels.length})</span></div>
-                <div class="provider-url">${p.baseUrl}</div>
-                <div class="provider-meta">
-                  <span class="tag tag-weight">W:${p.weight}</span>
-                  <span class="tag tag-latency">${latency}</span>
-                  ${failures > 0 ? `<span class="tag tag-failures">失败:${failures}</span>` : ''}
-                </div>
-              </div>
-              <span class="provider-status ${status}">${statusText}</span>
-            </div>`;
-        }).join('');
-        applyProviderLayout();
+        // Build or update provider cards
+        if (!_providersBuilt) {
+          // First time: build full cards
+          buildProviderStats();
+          buildProviderCards(providers);
+          _providersBuilt = true;
+          filterModels();
+        } else {
+          // Subsequent: only update dynamic values (latency, status, failures)
+          updateProviderCards(providers);
+          if (modelsChanged) {
+            buildProviderStats();
+            resetModelCache();
+            filterModels();
+          }
+        }
 
-        filterModels();
-
+        // Update logs
         let logs = stats.logs || [];
         const filterModel = document.getElementById('logFilterModel').value;
         const filterProvider = document.getElementById('logFilterProvider').value;
@@ -1349,6 +1600,72 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           </tr>
         `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:20px">暂无请求记录</td></tr>';
       } catch (e) { console.error('Refresh failed:', e); } finally { _refreshing = false; }
+    }
+
+    // Build provider cards (first load only)
+    function buildProviderCards(providers) {
+      const grid = document.getElementById('providersGrid');
+      grid.innerHTML = providers.map(p => {
+        const status = p.blocked ? 'blocked' : (p.health?.healthy === false ? 'unhealthy' : 'active');
+        const statusText = p.blocked ? '已阻断' : (p.health?.healthy === false ? '不健康' : '正常');
+        const latency = p.health?.latency ? p.health.latency + 'ms' : '--';
+        const failures = p.health?.consecutiveFailures || 0;
+        const pModels = allModels.filter(m => m.provider === p.name);
+        const pFree = pModels.filter(m => m.free).length;
+        const pPaid = pModels.filter(m => !m.free).length;
+        return `<div class="provider-card" data-provider="${_esc(p.name)}" style="cursor:pointer" onclick="selectProvider('${_esc(p.name)}')">
+          <div class="provider-icon">${p.name.charAt(0).toUpperCase()}</div>
+          <div class="provider-info">
+            <div class="provider-name">${_esc(p.name)} <span style="font-size:10px;color:var(--text-secondary);font-weight:400">(${pModels.length})</span></div>
+            <div class="provider-url">${_esc(p.baseUrl)}</div>
+            <div class="provider-meta">
+              ${pFree > 0 ? '<span class="tag" style="background:rgba(16,185,129,0.12);color:var(--success)">' + pFree + ' 免费</span>' : ''}
+              ${pPaid > 0 ? '<span class="tag" style="background:rgba(245,158,11,0.12);color:var(--warning)">' + pPaid + ' 付费</span>' : ''}
+              <span class="tag tag-weight">W:${p.weight}</span>
+              <span class="tag tag-latency" data-field="latency">${latency}</span>
+              <span class="tag tag-failures" data-field="failures" style="display:${failures > 0 ? '' : 'none'}">失败:${failures}</span>
+            </div>
+          </div>
+          <span class="provider-status ${status}" data-field="status">${statusText}</span>
+        </div>`;
+      }).join('');
+      applyProviderLayout();
+      applyFreeFilter();
+    }
+
+    // Update provider cards (lightweight - only change dynamic values)
+    function updateProviderCards(providers) {
+      var cards = document.querySelectorAll('.provider-card');
+      var cardMap = {};
+      cards.forEach(function(c) { cardMap[c.dataset.provider] = c; });
+      providers.forEach(function(p) {
+        var card = cardMap[p.name];
+        if (!card) return;
+        const status = p.blocked ? 'blocked' : (p.health?.healthy === false ? 'unhealthy' : 'active');
+        const statusText = p.blocked ? '已阻断' : (p.health?.healthy === false ? '不健康' : '正常');
+        const latency = p.health?.latency ? p.health.latency + 'ms' : '--';
+        const failures = p.health?.consecutiveFailures || 0;
+        // Update only text content, not innerHTML
+        const latencyEl = card.querySelector('[data-field="latency"]');
+        if (latencyEl) latencyEl.textContent = latency;
+        const failuresEl = card.querySelector('[data-field="failures"]');
+        if (failuresEl) {
+          failuresEl.textContent = '失败:' + failures;
+          failuresEl.style.display = failures > 0 ? '' : 'none';
+        }
+        const statusEl = card.querySelector('[data-field="status"]');
+        if (statusEl) {
+          statusEl.textContent = statusText;
+          statusEl.className = 'provider-status ' + status;
+        }
+        // Update icon color based on status
+        const icon = card.querySelector('.provider-icon');
+        if (icon) {
+          var isSelected = selectedProvider === p.name;
+          icon.style.background = isSelected ? 'var(--accent)' : status === 'active' ? 'rgba(59,130,246,0.12)' : status === 'blocked' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)';
+          icon.style.color = isSelected ? 'white' : status === 'active' ? 'var(--accent)' : status === 'blocked' ? 'var(--error)' : 'var(--warning)';
+        }
+      });
     }
 
     async function sendPlayground() {

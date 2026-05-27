@@ -4,33 +4,78 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const axios = require('axios');
 const { sanitizeResponse, sanitizeStreamChunk, logIncident } = require('../services/security');
+const { generateCode, sendVerificationEmail } = require('../services/email');
+const { createPaymentOrder, processSimulatedPayment, getUserPayments } = require('../services/payment');
 const store = require('../store');
 const userAuth = require('../middleware/userAuth');
+const adminAuth = require('../middleware/adminAuth');
 const { JWT_SECRET } = require('../middleware/userAuth');
 const {
   genId, encryptKey, decryptKey, testProviderKey, verifyModelsExist, verifyModelIdentity,
   processMarketRequest, calculatePrice, calculateModelPrice,
   freezeFunds, releaseFunds, refundFunds,
-  topUpBalance, processPayment,
+  topUpBalance, processPayment, calculateFeeWithCredits,
 } = require('../services/marketplace');
 
 const router = Router();
 
 // ==================== Auth ====================
 
+// Send verification code
+const sendCodeLimiter = {};
+router.post('/auth/send-code', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: { message: '请输入邮箱' } });
+  // Rate limit: 60 seconds per email
+  const now = Date.now();
+  if (sendCodeLimiter[email] && now - sendCodeLimiter[email] < 60000) {
+    const wait = Math.ceil((60000 - (now - sendCodeLimiter[email])) / 1000);
+    return res.status(429).json({ error: { message: `${wait} 秒后可重新发送` } });
+  }
+  if (store.getUserByEmail(email)) return res.status(409).json({ error: { message: '邮箱已注册' } });
+  const code = generateCode();
+  store.addVerificationCode({ id: 'vc_' + Date.now(), email, code, expiresAt: now + 5 * 60 * 1000, used: false, createdAt: now });
+  sendCodeLimiter[email] = now;
+  const result = await sendVerificationEmail(email, code);
+  if (result.success) {
+    res.json({ success: true, message: '验证码已发送到 ' + email, simulated: result.simulated || false });
+  } else {
+    res.status(500).json({ error: { message: '发送失败: ' + result.error } });
+  }
+});
+
+// Verify email
+router.post('/auth/verify-email', (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ error: { message: '邮箱和验证码必填' } });
+  const vc = store.getValidVerificationCode(email, code);
+  if (!vc) return res.status(400).json({ error: { message: '验证码无效或已过期' } });
+  store.markCodeUsed(email);
+  // Mark user as verified
+  const user = store.getUserByEmail(email);
+  if (user) store.updateUser(user.id, { emailVerified: true });
+  res.json({ success: true, message: '邮箱验证成功' });
+});
+
 router.post('/auth/register', async (req, res) => {
-  const { username, password, email, role } = req.body;
-  if (!username || !password || !email) return res.status(400).json({ error: { message: '用户名、密码、邮箱必填' } });
+  const { username, password, email, code } = req.body;
+  if (!username || !password || !email || !code) return res.status(400).json({ error: { message: '用户名、密码、邮箱、验证码必填' } });
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: { message: '用户名 3-20 个字符' } });
   if (password.length < 6) return res.status(400).json({ error: { message: '密码至少 6 位' } });
   if (store.getUserByUsername(username)) return res.status(409).json({ error: { message: '用户名已存在' } });
   if (store.getUserByEmail(email)) return res.status(409).json({ error: { message: '邮箱已注册' } });
+  // Verify code
+  const vc = store.getValidVerificationCode(email, code);
+  if (!vc) return res.status(400).json({ error: { message: '验证码无效或已过期' } });
+  store.markCodeUsed(email);
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const user = {
     id: genId('usr'), username, password: hashedPassword, email,
     role: 'buyer',
+    coins: 0, frozenCoins: 0, totalCoinEarnings: 0, totalCoinSpending: 0, feeCredits: 0,
     balance: 0, frozenBalance: 0, totalEarnings: 0, totalSpending: 0,
+    emailVerified: true, // verified during registration
     rating: 5.0, ratingCount: 0, createdAt: Date.now(), enabled: true,
   };
   store.addUser(user);
@@ -47,6 +92,7 @@ router.post('/auth/login', async (req, res) => {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ error: { message: '用户名或密码错误' } });
   if (!user.enabled) return res.status(403).json({ error: { message: '账号已被禁用' } });
+  if (user.emailVerified === false) return res.status(403).json({ error: { message: '请先验证邮箱后再登录' } });
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
   const { password: _, ...safeUser } = user;
   res.json({ success: true, token, user: safeUser });
@@ -118,6 +164,7 @@ router.post('/listings', userAuth, async (req, res) => {
   const { baseUrl, apiKey, description, models, modelRates, pricePerRequest, pricePerToken, totalQuota, sharingMode } = req.body;
   if (!baseUrl || !apiKey) return res.status(400).json({ error: { message: 'baseUrl 和 apiKey 必填' } });
   if (!pricePerRequest && !pricePerToken) return res.status(400).json({ error: { message: '至少设置一种价格' } });
+  if (pricePerRequest && pricePerRequest < 0.01) return res.status(400).json({ error: { message: '价格最低 0.01 金币' } });
 
   // Step 1: Test API key is working
   const testResult = await testProviderKey(baseUrl, apiKey);
@@ -349,10 +396,10 @@ router.post('/orders', userAuth, async (req, res) => {
 
   const totalPrice = listing.pricePerRequest * purchaseAmount;
 
-  // Step 1: Freeze buyer's funds
+  // Step 1: Freeze buyer's coins as deposit
   if (totalPrice > 0) {
-    const freezeResult = freezeFunds(req.userId, totalPrice, listing.description);
-    if (!freezeResult.success) return res.status(400).json({ error: { message: freezeResult.error } });
+    const freezeResult = store.freezeCoins(req.userId, totalPrice, '购买 ' + listing.description);
+    if (!freezeResult) return res.status(400).json({ error: { message: '金币余额不足，需要 ' + totalPrice + ' 金币' } });
   }
 
   // Step 2: Create order with 'frozen' status
@@ -370,16 +417,21 @@ router.post('/orders', userAuth, async (req, res) => {
   const verifyResult = await testProviderKey(listing.baseUrl, apiKey);
 
   if (verifyResult.healthy) {
-    // Key works - release funds immediately
+    // Key works - release coins to seller
     if (totalPrice > 0) {
-      releaseFunds(order.id);
-    } else {
-      store.updateListing(listing.id, {
-        remainingQuota: listing.remainingQuota - purchaseAmount,
-        soldCount: (listing.soldCount || 0) + purchaseAmount,
-      });
-      store.updateOrder(order.id, { status: 'completed' });
+      const buyer = store.getUserById(req.userId);
+      const { finalFee } = calculateFeeWithCredits(totalPrice, buyer.feeCredits || 0);
+      store.releaseCoins(req.userId, listing.sellerId, totalPrice, finalFee, '购买 ' + listing.description);
+      // Deduct used fee credits
+      const discount = totalPrice >= 1500 ? Math.min(buyer.feeCredits || 0, Math.ceil(totalPrice * 0.05)) : Math.min(buyer.feeCredits || 0, Math.ceil(totalPrice * 0.01));
+      if (discount > 0) store.updateUser(req.userId, { feeCredits: (buyer.feeCredits || 0) - discount });
     }
+    // Update listing: decrement quota
+    store.updateListing(listing.id, {
+      remainingQuota: listing.remainingQuota - purchaseAmount,
+      soldCount: (listing.soldCount || 0) + purchaseAmount,
+    });
+    store.updateOrder(order.id, { status: 'completed' });
 
     // Generate buyer API key
     const buyerKey = `mk-${crypto.randomBytes(24).toString('hex')}`;
@@ -420,8 +472,9 @@ router.post('/orders', userAuth, async (req, res) => {
       verify: { healthy: true, latency: verifyResult.latency },
     });
   } else {
-    // Key failed - refund to buyer
-    if (totalPrice > 0) refundFunds(order.id, `Key 验证失败: ${verifyResult.error}`);
+    // Key failed - refund coins to buyer
+    if (totalPrice > 0) store.refundCoins(req.userId, totalPrice, 'Key 验证失败，金币退回');
+    store.updateOrder(order.id, { status: 'refunded', refundReason: 'Key 验证失败' });
     store.updateListing(listing.id, { health: { lastCheck: Date.now(), latency: 0, healthy: false } });
     res.status(400).json({
       error: { message: `卖家的 API Key 验证失败: ${verifyResult.error}，资金已退回` },
@@ -438,8 +491,12 @@ router.post('/orders/:id/confirm', userAuth, (req, res) => {
   if (order.buyerId !== req.userId) return res.status(403).json({ error: { message: '只能确认自己的订单' } });
   if (order.status !== 'frozen') return res.status(400).json({ error: { message: '订单状态异常' } });
 
-  const result = releaseFunds(order.id);
-  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  // Use coin system with fee credits
+  const buyer = store.getUserById(order.buyerId);
+  const { finalFee, discount } = calculateFeeWithCredits(order.totalPrice, buyer.feeCredits || 0);
+  store.releaseCoins(order.buyerId, order.sellerId, order.totalPrice, finalFee, '确认收货');
+  if (discount > 0) store.updateUser(order.buyerId, { feeCredits: (buyer.feeCredits || 0) - discount });
+  store.updateOrder(order.id, { status: 'completed' });
   res.json({ success: true, order: store.getOrderById(order.id) });
 });
 
@@ -451,8 +508,8 @@ router.post('/orders/:id/dispute', userAuth, (req, res) => {
   if (order.status !== 'frozen') return res.status(400).json({ error: { message: '订单状态异常' } });
 
   const { reason } = req.body;
-  const result = refundFunds(order.id, reason || '买家申诉');
-  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  store.refundCoins(order.buyerId, order.totalPrice, '退款: ' + (reason || '买家申诉'));
+  store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉' });
   res.json({ success: true, order: store.getOrderById(order.id) });
 });
 
@@ -637,6 +694,181 @@ router.post('/v1/chat/completions', async (req, res) => {
   } catch (err) {
     res.status(err.response?.status || 502).json(err.response?.data || { error: { message: `Proxy error: ${err.message}` } });
   }
+});
+
+// ==================== Coin System ====================
+
+// Get coin balance
+router.get('/coin/balance', userAuth, (req, res) => {
+  res.json({
+    coins: req.user.coins || 0,
+    frozenCoins: req.user.frozenCoins || 0,
+    availableCoins: req.user.coins || 0,
+    feeCredits: req.user.feeCredits || 0,
+    totalCoinEarnings: req.user.totalCoinEarnings || 0,
+    totalCoinSpending: req.user.totalCoinSpending || 0,
+  });
+});
+
+// Get coin transactions
+router.get('/coin/transactions', userAuth, (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const txns = store.getCoinTransactions(req.userId).slice(-limit).reverse();
+  res.json({ data: txns });
+});
+
+// Rate limiter for redemption (5 attempts per minute per user)
+const redeemAttempts = {};
+
+// Redeem a code
+router.post('/coin/redeem', userAuth, (req, res) => {
+  const { code } = req.body;
+  if (!code || typeof code !== 'string') return res.status(400).json({ error: { message: '请输入兑换码' } });
+
+  // Rate limit: max 5 attempts per minute
+  const now = Date.now();
+  const key = 'redeem_' + req.userId;
+  if (!redeemAttempts[key]) redeemAttempts[key] = [];
+  redeemAttempts[key] = redeemAttempts[key].filter(t => now - t < 60000);
+  if (redeemAttempts[key].length >= 5) {
+    return res.status(429).json({ error: { message: '兑换尝试过于频繁，请 1 分钟后再试' } });
+  }
+  redeemAttempts[key].push(now);
+
+  const result = store.useRedemptionCode(code.trim().toUpperCase(), req.userId);
+  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  res.json({ success: true, coins: result.coins, message: '兑换成功，获得 ' + result.coins + ' 金币' });
+});
+
+// Create purchase order
+router.post('/coin/purchase', userAuth, (req, res) => {
+  const { amount } = req.body;
+  const result = createPaymentOrder(req.userId, amount);
+  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  res.json({
+    success: true,
+    order: result.order,
+    message: '订单已创建，请完成支付',
+  });
+});
+
+// Process simulated payment
+router.post('/coin/pay', userAuth, (req, res) => {
+  const { orderId } = req.body;
+  if (!orderId) return res.status(400).json({ error: { message: '缺少订单 ID' } });
+  const order = store.getPaymentOrder(orderId);
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.userId !== req.userId) return res.status(403).json({ error: { message: '无权操作此订单' } });
+  const result = processSimulatedPayment(orderId);
+  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  res.json({ success: true, amount: result.amount, message: '充值成功，' + result.amount + ' 金币已到账' });
+});
+
+// Get purchase history
+router.get('/coin/purchases', userAuth, (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const orders = getUserPayments(req.userId, limit);
+  res.json({ data: orders });
+});
+
+// Request withdrawal
+router.post('/coin/withdraw', userAuth, (req, res) => {
+  const { coins } = req.body;
+  if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
+  if (coins > (req.user.coins || 0)) return res.status(400).json({ error: { message: '金币余额不足' } });
+
+  // Check for pending withdrawals
+  const pending = store.getWithdrawalsByUser(req.userId).filter(w => w.status === 'pending');
+  if (pending.length > 0) return res.status(400).json({ error: { message: '有正在审核的提现申请，请等待处理' } });
+
+  // Deduct coins immediately (held in withdrawal)
+  store.deductCoins(req.userId, coins, '申请提现 ' + coins + ' 金币');
+
+  const withdrawal = {
+    id: 'wd_' + Date.now(),
+    userId: req.userId,
+    username: req.user.username,
+    coins,
+    status: 'pending',
+    createdAt: Date.now(),
+    processedAt: null,
+    note: '',
+  };
+  store.addWithdrawal(withdrawal);
+  res.json({ success: true, message: '提现申请已提交，等待审核', withdrawal });
+});
+
+// Get my withdrawals
+router.get('/coin/withdrawals', userAuth, (req, res) => {
+  const withdrawals = store.getWithdrawalsByUser(req.userId);
+  res.json({ data: withdrawals });
+});
+
+// ==================== Admin: Coin Management ====================
+
+// Generate redemption codes
+router.post('/admin/codes', adminAuth, (req, res) => {
+  const { coins, count } = req.body;
+  if (!coins || coins < 1) return res.status(400).json({ error: { message: '金币数必须大于 0' } });
+  const num = Math.min(count || 1, 100);
+  const codes = [];
+  for (let i = 0; i < num; i++) {
+    const code = {
+      code: 'COIN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+      coins: parseInt(coins),
+      usedBy: null,
+      usedAt: null,
+      createdAt: Date.now(),
+      createdBy: 'admin',
+    };
+    store.addRedemptionCode(code);
+    codes.push(code);
+  }
+  res.json({ success: true, codes, message: `生成了 ${num} 个兑换码，每个 ${coins} 金币` });
+});
+
+// List all codes
+router.get('/admin/codes', adminAuth, (req, res) => {
+  const codes = store.getRedemptionCodes();
+  const unused = codes.filter(c => !c.usedBy).length;
+  res.json({ data: codes, total: codes.length, unused });
+});
+
+// List withdrawals
+router.get('/admin/withdrawals', adminAuth, (req, res) => {
+  const withdrawals = store.getWithdrawals();
+  const pending = withdrawals.filter(w => w.status === 'pending').length;
+  res.json({ data: withdrawals, total: withdrawals.length, pending });
+});
+
+// Approve/reject withdrawal
+router.put('/admin/withdrawals/:id', adminAuth, (req, res) => {
+  const { status, note } = req.body;
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: { message: '状态必须是 approved 或 rejected' } });
+  }
+  const withdrawal = store.getWithdrawals().find(w => w.id === req.params.id);
+  if (!withdrawal) return res.status(404).json({ error: { message: '提现申请不存在' } });
+  if (withdrawal.status !== 'pending') return res.status(400).json({ error: { message: '该申请已处理' } });
+
+  store.updateWithdrawal(req.params.id, { status, processedAt: Date.now(), note: note || '' });
+
+  if (status === 'rejected') {
+    // Refund coins back to user
+    store.addCoins(withdrawal.userId, withdrawal.coins, '提现被拒绝，金币退回');
+  }
+
+  res.json({ success: true, message: status === 'approved' ? '已批准提现' : '已拒绝，金币已退回' });
+});
+
+// Direct coin top-up (admin only)
+router.post('/admin/topup-coins', adminAuth, (req, res) => {
+  const { userId, coins, note } = req.body;
+  if (!userId || !coins) return res.status(400).json({ error: { message: 'userId 和 coins 必填' } });
+  const user = store.getUserById(userId);
+  if (!user) return res.status(404).json({ error: { message: '用户不存在' } });
+  store.addCoins(userId, parseInt(coins), note || '管理员充值');
+  res.json({ success: true, message: `已为 ${user.username} 充值 ${coins} 金币` });
 });
 
 module.exports = router;

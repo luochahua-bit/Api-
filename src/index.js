@@ -31,12 +31,16 @@ app.use(express.json({ limit: '10mb' }));
 // Dashboard
 const dashboardHtml = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
 app.get('/', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
   res.type('html').send(dashboardHtml);
 });
 
 // Marketplace page
 const marketHtml = fs.readFileSync(path.join(__dirname, 'marketplace.html'), 'utf8');
 app.get('/market', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
   res.type('html').send(marketHtml);
 });
 

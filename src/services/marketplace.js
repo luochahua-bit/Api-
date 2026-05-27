@@ -2,7 +2,21 @@ const crypto = require('crypto');
 const axios = require('axios');
 const store = require('../store');
 
-const PLATFORM_FEE_RATE = 0.1; // 10% platform fee
+// Tiered platform service fee
+function calculatePlatformFee(amount) {
+  let rate;
+  if (amount >= 10000) rate = 0.10;       // 10% for >= 10000
+  else if (amount >= 1500) rate = 0.05;    // 5% for >= 1500
+  else rate = 0.01;                        // 1% default
+  return { fee: Math.ceil(amount * rate), rate };
+}
+
+// Calculate fee after applying user's fee credits
+function calculateFeeWithCredits(amount, feeCredits) {
+  const { fee: rawFee, rate } = calculatePlatformFee(amount);
+  const discount = Math.min(feeCredits || 0, rawFee);
+  return { rawFee, discount, finalFee: rawFee - discount, rate };
+}
 
 function genId(prefix) {
   return `${prefix}_${crypto.randomBytes(10).toString('hex')}`;
@@ -183,7 +197,7 @@ function releaseFunds(orderId) {
   if (!buyer || !seller) return { success: false, error: '用户不存在' };
 
   const amount = order.totalPrice;
-  const platformFee = amount * PLATFORM_FEE_RATE;
+  const { fee: platformFee } = calculatePlatformFee(amount);
   const sellerEarning = amount - platformFee;
 
   // Move from frozen to seller
@@ -208,7 +222,7 @@ function releaseFunds(orderId) {
   store.addTransaction({
     id: genId('txn'), userId: order.sellerId,
     type: 'earning', amount: sellerEarning,
-    description: `出售收入: ${order.description || 'API Key'} (平台抽成 ${Math.round(PLATFORM_FEE_RATE * 100)}%)`,
+    description: `出售收入: ${order.description || 'API Key'} (平台服务费 ${platformFee} 金币)`,
     createdAt: Date.now(),
   });
 
@@ -269,41 +283,30 @@ function topUpBalance(userId, amount, adminNote) {
   return { success: true, newBalance: user.balance + amount };
 }
 
-// Direct payment (for per-token billing after request completes)
+// Direct payment (for per-token billing after request completes) — uses coin system
 function processPayment(buyerId, sellerId, listingId, amount) {
   if (amount <= 0) return { success: false, error: '金额无效' };
 
   const buyer = store.getUserById(buyerId);
   const seller = store.getUserById(sellerId);
   if (!buyer || !seller) return { success: false, error: '用户不存在' };
-  if (buyer.balance < amount) return { success: false, error: '余额不足' };
+  if ((buyer.coins || 0) < amount) return { success: false, error: '金币不足' };
 
-  const platformFee = amount * PLATFORM_FEE_RATE;
+  const { fee: platformFee } = calculatePlatformFee(amount);
   const sellerEarning = amount - platformFee;
 
   store.updateUser(buyerId, {
-    balance: buyer.balance - amount,
-    totalSpending: (buyer.totalSpending || 0) + amount,
+    coins: (buyer.coins || 0) - amount,
+    totalCoinSpending: (buyer.totalCoinSpending || 0) + amount,
   });
 
   store.updateUser(sellerId, {
-    balance: seller.balance + sellerEarning,
-    totalEarnings: (seller.totalEarnings || 0) + sellerEarning,
+    coins: (seller.coins || 0) + sellerEarning,
+    totalCoinEarnings: (seller.totalCoinEarnings || 0) + sellerEarning,
   });
 
-  store.addTransaction({
-    id: genId('txn'), userId: buyerId,
-    type: 'usage', amount: -amount,
-    description: `Token 用量扣费`,
-    createdAt: Date.now(),
-  });
-
-  store.addTransaction({
-    id: genId('txn'), userId: sellerId,
-    type: 'earning', amount: sellerEarning,
-    description: `Token 用量收入 (平台抽成 ${Math.round(PLATFORM_FEE_RATE * 100)}%)`,
-    createdAt: Date.now(),
-  });
+  store.addCoinTransaction(buyerId, 'usage', -amount, 'Token 用量扣费');
+  store.addCoinTransaction(sellerId, 'earning', sellerEarning, 'Token 用量收入 (平台服务费 ' + platformFee + ' 金币)');
 
   return { success: true };
 }
@@ -313,5 +316,7 @@ module.exports = {
   testProviderKey, verifyModelsExist, verifyModelIdentity,
   processMarketRequest, calculatePrice, calculateModelPrice,
   freezeFunds, releaseFunds, refundFunds,
-  topUpBalance, processPayment, PLATFORM_FEE_RATE,
+  topUpBalance, processPayment,
+  calculatePlatformFee, calculateFeeWithCredits,
+  PLATFORM_FEE_RATE: 0.01,
 };
