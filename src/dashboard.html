@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/fixes/icon-192.svg">
+  <link rel="apple-touch-icon" href="/fixes/icon-192.svg">
   <title>LLM API 中转站 - 控制面板</title>
   <style>
     :root {
@@ -42,7 +44,9 @@
     .header {
       background: var(--glass); border-bottom: 1px solid var(--border);
       padding: 14px 32px; display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    @media(min-width:769px){.header{backdrop-filter:blur(20px)}}
     }
     .header-left { display: flex; align-items: center; gap: 14px; }
     .logo {
@@ -98,7 +102,7 @@
     .hero-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
     .stat-card {
       background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
-      padding: 18px 20px; transition: all 0.25s; position: relative; overflow: hidden;
+      padding: 18px 20px; transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s; position: relative; overflow: hidden;
     }
     .stat-card::before {
       content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
@@ -144,7 +148,7 @@
     .provider-card {
       background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
       padding: 14px 16px; display: flex; align-items: center; gap: 12px;
-      transition: all 0.2s; cursor: default;
+      transition: border-color 0.2s, background 0.2s; cursor: default;
     }
     .provider-card:hover { border-color: var(--accent); background: var(--bg-hover); }
     .provider-icon {
@@ -168,8 +172,9 @@
     .model-card {
       display: flex; align-items: center; gap: 8px; padding: 10px 14px;
       background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px;
-      font-size: 12px; transition: all 0.15s;
+      font-size: 12px; transition: border-color 0.15s, background 0.15s;
     }
+    .no-transition, .no-transition * { transition: none !important; animation: none !important; }
     .model-card:hover { border-color: var(--accent); background: var(--bg-hover); }
     .model-free { background: rgba(16,185,129,0.15); color: var(--success); font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 700; }
     .model-paid { background: rgba(245,158,11,0.15); color: var(--warning); font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 700; }
@@ -269,7 +274,7 @@
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center;
-      z-index: 1000; backdrop-filter: blur(4px);
+      z-index: 1000;
     }
     .modal-overlay.show { display: flex; }
     .modal {
@@ -945,12 +950,12 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       const list = document.getElementById('adminProviderList');
       list.innerHTML = providers.map(p => `
         <div class="key-row" style="margin-bottom:6px">
-          <span style="font-weight:700;min-width:90px;font-size:12px">${p.name}</span>
-          <code style="flex:1;font-size:10px;color:var(--text-secondary)">${p.baseUrl}</code>
+          <span style="font-weight:700;min-width:90px;font-size:12px">${_esc(p.name)}</span>
+          <code style="flex:1;font-size:10px;color:var(--text-secondary)">${_esc(p.baseUrl)}</code>
           <span class="tag tag-weight">W:${p.weight}</span>
           <span class="provider-status ${p.blocked ? 'blocked' : p.health?.healthy === false ? 'unhealthy' : 'active'}">${p.blocked ? '阻断' : p.health?.healthy === false ? '不健康' : '正常'}</span>
-          <button class="btn btn-secondary btn-sm" onclick="editProvider('${p.name}','${p.baseUrl}','${p.apiKey||''}',${p.weight})">编辑</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteProvider('${p.name}')">删除</button>
+          <button class="btn btn-secondary btn-sm" onclick="editProvider('${_esc(p.name)}','${_esc(p.baseUrl)}','${_esc(p.apiKey||'')}',${p.weight})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProvider('${_esc(p.name)}')">删除</button>
         </div>
       `).join('') || '<p style="color:var(--text-secondary);font-size:12px">暂无提供商配置。</p>';
     }
@@ -959,11 +964,11 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       const list = document.getElementById('adminKeyList');
       list.innerHTML = keys.map(k => `
         <div class="key-row" style="margin-bottom:6px">
-          <code style="flex:1;font-size:11px;color:var(--text-secondary)">${k.key}</code>
-          <span style="font-size:11px;color:var(--text-secondary)">${k.name || 'unnamed'}</span>
+          <code style="flex:1;font-size:11px;color:var(--text-secondary)">${_esc(k.key)}</code>
+          <span style="font-size:11px;color:var(--text-secondary)">${_esc(k.name || 'unnamed')}</span>
           <span style="font-size:11px;color:var(--text-secondary)">已用: ${k.usageCount || 0}</span>
           <span class="provider-status ${k.enabled ? 'active' : 'blocked'}">${k.enabled ? '启用' : '禁用'}</span>
-          <button class="btn btn-danger btn-sm" onclick="deleteApiKey('${k.key}')">删除</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteApiKey('${_esc(k.key)}')">删除</button>
         </div>
       `).join('') || '<p style="color:var(--text-secondary);font-size:12px">暂无 API 密钥。</p>';
     }
@@ -1188,77 +1193,62 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
 
     var _modelsRendered = false;
 
-    function filterModels() {
-      const search = document.getElementById('modelSearch').value.toLowerCase();
-      const filter = document.getElementById('modelFilter').value;
-      const mg = document.getElementById('modelsGrid');
+    var _modelCards = null; // cached DOM references
+    var _providerCards = null;
 
-      // First time: pre-render ALL model cards with data attributes
-      if (!_modelsRendered || mg.children.length === 0) {
-        _modelsRendered = true;
-        // Sort all models by quality once
-        var sorted = allModels.slice().sort(function(a, b) {
+    var _sortedModels = null; // pre-sorted model data (computed once)
+
+    function filterModels() {
+      var search = document.getElementById('modelSearch').value.toLowerCase();
+      var filter = document.getElementById('modelFilter').value;
+      var mg = document.getElementById('modelsGrid');
+
+      // Pre-sort models once
+      if (!_sortedModels) {
+        _sortedModels = allModels.slice().sort(function(a, b) {
           if (a.free !== b.free) return a.free ? -1 : 1;
           return (b._quality || 0) - (a._quality || 0);
         });
-        var html = '';
-        sorted.forEach(function(m) {
-          html += '<div class="model-card" data-free="' + (m.free ? '1' : '0') + '" data-provider="' + (m.provider || '') + '" data-name="' + (m.id || '').toLowerCase() + '">' +
-            (m.free ? '<span class="model-free">FREE</span>' : '<span class="model-paid">PAID</span>') +
-            '<span class="model-name">' + (m.id || '') + '</span>' +
-            (m.provider ? '<span class="model-provider-tag">' + m.provider + '</span>' : '') +
-            '</div>';
-        });
-        html += '<div class="model-toggle-row" style="grid-column:1/-1;text-align:center;padding:10px;display:none"><button class="btn btn-sm btn-outline" id="modelToggleBtn" onclick="toggleModelExpand()">显示更多</button></div>';
-        mg.innerHTML = html;
       }
 
-      // Toggle visibility based on filter (pure CSS, no DOM creation)
-      var visibleCount = 0;
-      var cards = mg.querySelectorAll('.model-card');
-      for (var i = 0; i < cards.length; i++) {
-        var card = cards[i];
-        var isFree = card.dataset.free === '1';
-        var provider = card.dataset.provider;
-        var name = card.dataset.name;
+      // Filter in JS (no DOM reads)
+      var matchCount = 0;
+      var limit = _modelExpanded ? 999 : 12;
+      var html = '';
+      for (var i = 0; i < _sortedModels.length; i++) {
+        var m = _sortedModels[i];
+        var isFree = m.free;
+        var provider = m.provider || '';
+        var name = (m.id || '').toLowerCase();
         var matchSearch = !search || name.includes(search);
         var matchFilter = filter === '' || (filter === 'free' && isFree) || (filter === 'paid' && !isFree);
         var matchProvider = !selectedProvider || provider === selectedProvider;
         if (matchSearch && matchFilter && matchProvider) {
-          card.style.display = '';
-          visibleCount++;
-          // Show/hide based on expand state
-          if (!_modelExpanded && visibleCount > 12) {
-            card.style.display = 'none';
+          matchCount++;
+          if (matchCount <= limit) {
+            html += '<div class="model-card">' +
+              (isFree ? '<span class="model-free">FREE</span>' : '<span class="model-paid">PAID</span>') +
+              '<span class="model-name">' + _esc(m.id) + '</span>' +
+              (provider ? '<span class="model-provider-tag">' + _esc(provider) + '</span>' : '') +
+              '</div>';
           }
-        } else {
-          card.style.display = 'none';
         }
       }
 
-      // Toggle row
-      var toggleRow = mg.querySelector('.model-toggle-row');
-      if (toggleRow) {
-        if (visibleCount > 12) {
-          toggleRow.style.display = '';
-          var btn = document.getElementById('modelToggleBtn');
-          if (btn) btn.textContent = _modelExpanded ? '收起' : '显示更多 (' + visibleCount + ')';
-        } else {
-          toggleRow.style.display = 'none';
-        }
+      // Show "more" button if needed
+      if (matchCount > 12) {
+        html += '<div style="grid-column:1/-1;text-align:center;padding:10px"><button class="btn btn-sm btn-outline" onclick="toggleModelExpand()">' + (_modelExpanded ? '收起' : '显示更多 (' + matchCount + ')') + '</button></div>';
       }
-      document.getElementById('modelCount').textContent = visibleCount;
 
-      // Defer provider reorder
-      requestAnimationFrame(function() {
-        if (!_reorderPending) {
-          _reorderPending = true;
-          requestAnimationFrame(function() {
-            _reorderPending = false;
-            reorderProviders(document.getElementById('modelFilter').value);
-          });
-        }
-      });
+      // Single DOM update
+      mg.innerHTML = html;
+      document.getElementById('modelCount').textContent = matchCount;
+
+      // Defer provider reorder (only if filter changed)
+      if (filter !== _lastProviderFilter) {
+        _lastProviderFilter = filter;
+        requestAnimationFrame(function() { reorderProviders(filter); });
+      }
     }
 
     function toggleModelExpand() {
@@ -1270,42 +1260,59 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     // Called when allModels changes - force re-render
     function resetModelCache() {
       _modelsRendered = false;
+      _sortedModels = null;
+      _modelCards = null;
     }
 
-    // Provider scoring: all lookups are O(1), batch DOM reorder
+    // Provider scoring: pre-computed from data, cached DOM refs
     var _lastProviderFilter = '';
     function reorderProviders(filter) {
       var grid = document.getElementById('providersGrid');
       if (!grid) return;
-      var cards = Array.from(grid.querySelectorAll('.provider-card'));
-      cards.forEach(function(c) {
-        var nameEl = c.querySelector('.provider-name');
-        if (!nameEl) { c._sortVal = 0; return; }
-        var name = nameEl.textContent.split(' (')[0].trim();
+
+      // Cache provider card references
+      if (!_providerCards) _providerCards = Array.from(grid.querySelectorAll('.provider-card'));
+      var cards = _providerCards;
+      var frag = document.createDocumentFragment();
+
+      // Pre-compute sort values from cached data (no DOM reads)
+      for (var i = 0; i < cards.length; i++) {
+        var c = cards[i];
+        var name = c.dataset.providerName;
         var s = _providerStats[name];
-        if (!s) { c._sortVal = 0; return; }
-        var statusEl = c.querySelector('.provider-status');
-        var isHealthy = statusEl && statusEl.classList.contains('active');
+
+        // Filter: hide providers that don't have matching models
+        if (filter === 'paid' && name !== 'paid' && s && s.paid === 0) {
+          c.style.display = 'none';
+          continue;
+        }
+        if (filter === 'free' && name === 'paid') {
+          c.style.display = 'none';
+          continue;
+        }
+        c.style.display = ''; // restore visibility for all other cases
+
+        if (!s) { c._sortVal = 0; frag.appendChild(c); continue; }
+
+        var isHealthy = c.dataset.healthy === '1';
         var health = isHealthy ? 100000 : 0;
         var rating = (_providerRatings[name] ? _providerRatings[name].rating : 0) * 1000;
-        // Latency scoring: lower = better, max bonus 5000
-        var latencyEl = c.querySelector('[data-field="latency"]');
-        var latency = 0;
-        if (latencyEl) {
-          var lt = parseInt(latencyEl.textContent);
-          if (!isNaN(lt)) latency = lt;
-        }
+        var latency = parseInt(c.dataset.latency) || 0;
         var latencyScore = latency > 0 ? Math.max(0, 5000 - latency * 10) : 0;
+
         var score = 0;
         if (filter === 'free') score = health + rating + latencyScore + s.free * 100 + s.freeAvgQ * 10;
         else if (filter === 'paid') score = health + rating + latencyScore + s.paid * 100 + s.paidAvgQ * 10;
         else score = health + rating + latencyScore + s.total * 50 + s.avgQuality * 10 + s.highQualityRatio * 500;
         c._sortVal = score;
-      });
-      cards.sort(function(a, b) { return (b._sortVal || 0) - (a._sortVal || 0); });
-      var frag = document.createDocumentFragment();
-      cards.forEach(function(c) { frag.appendChild(c); });
-      grid.appendChild(frag);
+        frag.appendChild(c);
+      }
+
+      // Sort and re-insert in one batch
+      var sorted = Array.from(frag.childNodes).sort(function(a, b) { return (b._sortVal || 0) - (a._sortVal || 0); });
+      var batchFrag = document.createDocumentFragment();
+      sorted.forEach(function(c) { batchFrag.appendChild(c); });
+      grid.appendChild(batchFrag);
     }
 
     // ========== User Center ==========
@@ -1438,7 +1445,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           chartEl.innerHTML = modelEntries.map(([model, count]) => {
             const h = Math.max(4, (count / maxCount) * 100);
             const shortName = model.length > 16 ? model.slice(0, 14) + '..' : model;
-            return `<div class="bar-col"><div class="bar-value">${count}</div><div class="bar" style="height:${h}%"></div><div class="bar-label">${shortName}</div></div>`;
+            return `<div class="bar-col"><div class="bar-value">${count}</div><div class="bar" style="height:${h}%"></div><div class="bar-label">${_esc(shortName)}</div></div>`;
           }).join('');
         }
 
@@ -1469,9 +1476,9 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         if (completedOrders.length > 0) {
           keysEl.innerHTML = completedOrders.map(o => `
             <div class="api-key-row">
-              <span style="font-size:11px;color:var(--text-secondary)">${o.description || 'API Key'}</span>
-              <code>${o.apiKey || '***'}</code>
-              <span class="tag" style="background:rgba(16,185,129,0.12);color:var(--success)">${o.status}</span>
+              <span style="font-size:11px;color:var(--text-secondary)">${_esc(o.description || 'API Key')}</span>
+              <code>${_esc(o.apiKey || '***')}</code>
+              <span class="tag" style="background:rgba(16,185,129,0.12);color:var(--success)">${_esc(o.status)}</span>
             </div>
           `).join('');
         }
@@ -1482,7 +1489,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           ordersEl.innerHTML = orderList.slice(0, 5).map(o => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">
               <div>
-                <div style="font-weight:600">${o.description || 'API 购买'}</div>
+                <div style="font-weight:600">${_esc(o.description || 'API 购买')}</div>
                 <div style="color:var(--text-secondary);font-size:11px">${timeAgo(o.createdAt)}</div>
               </div>
               <div style="text-align:right">
@@ -1585,16 +1592,16 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const providers_set = [...new Set(allLogs.map(l => l.provider).filter(Boolean))];
         const curModel = document.getElementById('logFilterModel').value;
         const curProvider = document.getElementById('logFilterProvider').value;
-        document.getElementById('logFilterModel').innerHTML = '<option value="">全部模型</option>' + models_set.map(m => `<option value="${m}" ${m===curModel?'selected':''}>${m}</option>`).join('');
-        document.getElementById('logFilterProvider').innerHTML = '<option value="">全部提供商</option>' + providers_set.map(p => `<option value="${p}" ${p===curProvider?'selected':''}>${p}</option>`).join('');
+        document.getElementById('logFilterModel').innerHTML = '<option value="">全部模型</option>' + models_set.map(m => `<option value="${_esc(m)}" ${m===curModel?'selected':''}>${_esc(m)}</option>`).join('');
+        document.getElementById('logFilterProvider').innerHTML = '<option value="">全部提供商</option>' + providers_set.map(p => `<option value="${_esc(p)}" ${p===curProvider?'selected':''}>${_esc(p)}</option>`).join('');
 
         document.getElementById('logsBody').innerHTML = logs.slice(0, 50).map(l => `
           <tr>
             <td style="color:var(--text-secondary);font-size:11px">${timeAgo(l.timestamp)}</td>
-            <td style="font-family:monospace;font-size:10px;color:var(--text-secondary)">${(l.id||'').slice(0,18)}...</td>
-            <td style="font-size:12px">${l.model}</td>
-            <td><span class="log-provider">${l.provider}</span></td>
-            <td><span class="log-status ${l.status === 'error' ? 'error' : l.status === 'streaming' ? 'streaming' : 'success'}">${l.status}</span></td>
+            <td style="font-family:monospace;font-size:10px;color:var(--text-secondary)">${_esc((l.id||'').slice(0,18))}...</td>
+            <td style="font-size:12px">${_esc(l.model)}</td>
+            <td><span class="log-provider">${_esc(l.provider)}</span></td>
+            <td><span class="log-status ${l.status === 'error' ? 'error' : l.status === 'streaming' ? 'streaming' : 'success'}">${_esc(l.status)}</span></td>
             <td style="font-size:12px">${l.tokens || '-'}</td>
             <td style="color:var(--text-secondary);font-size:11px">${l.duration ? l.duration + 'ms' : '-'}</td>
           </tr>
@@ -1613,7 +1620,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const pModels = allModels.filter(m => m.provider === p.name);
         const pFree = pModels.filter(m => m.free).length;
         const pPaid = pModels.filter(m => !m.free).length;
-        return `<div class="provider-card" data-provider="${_esc(p.name)}" style="cursor:pointer" onclick="selectProvider('${_esc(p.name)}')">
+        return `<div class="provider-card" data-provider="${_esc(p.name)}" data-provider-name="${_esc(p.name)}" data-healthy="${p.health?.healthy === false ? '0' : '1'}" data-latency="${p.health?.latency || 0}" style="cursor:pointer" onclick="selectProvider('${_esc(p.name)}')">
           <div class="provider-icon">${p.name.charAt(0).toUpperCase()}</div>
           <div class="provider-info">
             <div class="provider-name">${_esc(p.name)} <span style="font-size:10px;color:var(--text-secondary);font-weight:400">(${pModels.length})</span></div>
@@ -1629,6 +1636,24 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           <span class="provider-status ${status}" data-field="status">${statusText}</span>
         </div>`;
       }).join('');
+
+      // Add virtual "付费模型" card for paid models from marketplace
+      var paidModels = allModels.filter(m => !m.free);
+      if (paidModels.length > 0) {
+        grid.innerHTML += `<div class="provider-card" data-provider="paid" data-provider-name="paid" data-healthy="1" data-latency="0" style="cursor:pointer;border:1px dashed rgba(245,158,11,0.4)" onclick="selectProvider('paid')">
+          <div class="provider-icon" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">P</div>
+          <div class="provider-info">
+            <div class="provider-name">付费模型 <span style="font-size:10px;color:var(--text-secondary);font-weight:400">(${paidModels.length})</span></div>
+            <div class="provider-url" style="color:var(--warning)">通过市场卖家 Key 使用</div>
+            <div class="provider-meta">
+              <span class="tag" style="background:rgba(245,158,11,0.12);color:var(--warning)">${paidModels.length} 付费</span>
+            </div>
+          </div>
+          <span class="provider-status active">市场</span>
+        </div>`;
+      }
+
+      _providerCards = null; // invalidate cache on re-render
       applyProviderLayout();
       applyFreeFilter();
     }

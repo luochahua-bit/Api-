@@ -3,15 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/fixes/icon-192.svg">
+<link rel="apple-touch-icon" href="/fixes/icon-192.svg">
 <title>API 市场 - LLM 交易平台</title>
 <style>
 :root{--bg:#0f1117;--bg2:#1a1d27;--card:#1e2235;--card-hover:#252a40;--border:#2a2d3a;--primary:#6366f1;--primary-hover:#818cf8;--primary-bg:rgba(99,102,241,.1);--success:#22c55e;--danger:#ef4444;--error:#ef4444;--warning:#f59e0b;--info:#3b82f6;--text:#e2e8f0;--text-primary:#e2e8f0;--text2:#94a3b8;--text-secondary:#94a3b8;--text3:#64748b;--input-bg:#151828;--shadow:0 4px 24px rgba(0,0,0,.3);--secondary-bg:#1a1d27;--accent:#6366f1}
 [data-theme="light"]{--bg:#f1f5f9;--bg2:#ffffff;--card:#ffffff;--card-hover:#f8fafc;--border:#e2e8f0;--primary:#6366f1;--primary-hover:#4f46e5;--primary-bg:rgba(99,102,241,.08);--text:#1e293b;--text2:#475569;--text3:#94a3b8;--input-bg:#f8fafc;--shadow:0 4px 24px rgba(0,0,0,.08)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;-webkit-tap-highlight-color:transparent}
 a{color:var(--primary);text-decoration:none}
 .container{max-width:1200px;margin:0 auto;padding:0 16px}
-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 0;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 0;position:sticky;top:0;z-index:100}
+@media(min-width:769px){header{backdrop-filter:blur(12px)}}
 header .container{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .logo{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--primary),#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;cursor:pointer}
 nav{display:flex;gap:2px;align-items:center}
@@ -40,7 +43,8 @@ textarea{min-height:60px;resize:vertical}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:.2s}
 .card:hover{border-color:var(--primary);box-shadow:var(--shadow)}
 .hidden{display:none!important}
-.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+@media(min-width:769px){.modal-overlay{backdrop-filter:blur(4px)}}
 .modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .modal h2{margin-bottom:16px;font-size:18px}
 .modal-close{float:right;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1}
@@ -125,12 +129,13 @@ textarea{min-height:60px;resize:vertical}
       <button onclick="showPage('browse')" data-page="browse">市场</button>
       <button onclick="showPage('sell')" data-page="sell">卖 Key</button>
       <button onclick="showPage('orders')" data-page="orders">订单</button>
+      <button onclick="showPage('tasks')" data-page="tasks">任务</button>
       <button onclick="showPage('wallet')" data-page="wallet">钱包</button>
-      <a href="/" class="btn btn-sm btn-outline">管理面板</a>
+      <a href="/admin" class="btn btn-sm btn-outline">管理面板</a>
     </nav>
   </div>
   <div class="header-right">
-    <a href="/" class="btn btn-sm btn-outline" style="text-decoration:none" title="返回控制面板">🏠 控制面板</a>
+    <a href="/admin" class="btn btn-sm btn-outline" style="text-decoration:none" title="管理面板">🏠 管理面板</a>
     <span id="userDisplay" class="hidden" style="font-size:13px;font-weight:600"></span>
     <span class="hidden" id="balanceDisplay" style="font-size:12px;color:var(--success);font-weight:700"></span>
     <span class="hidden" id="frozenDisplay" style="font-size:11px;color:var(--warning)"></span>
@@ -256,23 +261,52 @@ textarea{min-height:60px;resize:vertical}
     <div id="ordersList"></div>
   </div>
 
+  <!-- Tasks Page -->
+  <div id="page-tasks" class="hidden">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">免费币余额</div>
+        <div id="taskFreeCoins" style="font-size:24px;font-weight:800;color:var(--primary)">-</div>
+        <div style="font-size:10px;color:var(--text3)">1 币 = 1 万 token</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">付费币余额</div>
+        <div id="taskPaidCoins" style="font-size:24px;font-weight:800;color:var(--warning)">-</div>
+        <div style="font-size:10px;color:var(--text3)">充值获得</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">邀请好友</div>
+        <div id="taskInviteCode" style="font-size:20px;font-weight:800;color:var(--success);letter-spacing:2px">-</div>
+        <div id="taskInviteLink" style="font-size:10px;color:var(--text3);margin:4px 0;word-break:break-all">-</div>
+        <button class="btn btn-sm btn-outline" style="margin-top:4px" onclick="copyInviteLink()">复制邀请链接</button>
+      </div>
+    </div>
+    <h3 style="font-size:14px;margin-bottom:12px">做任务赚免费币</h3>
+    <div id="taskList" class="card">加载中...</div>
+  </div>
+
   <!-- Wallet Page -->
   <div id="page-wallet" class="hidden">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:12px;margin-bottom:20px">
       <div class="card" style="text-align:center">
-        <div style="font-size:11px;color:var(--text3)">金币余额</div>
+        <div style="font-size:11px;color:var(--text3)">免费币</div>
+        <div style="font-size:28px;font-weight:800;color:var(--primary);margin:6px 0" id="walletFreeCoins">0</div>
+        <div style="font-size:10px;color:var(--text3)">任务获得 (1币=1万token)</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-size:11px;color:var(--text3)">付费币</div>
         <div style="font-size:28px;font-weight:800;color:var(--success);margin:6px 0" id="walletCoins">0</div>
-        <div style="font-size:11px;color:var(--text3)">可用金币</div>
+        <div style="font-size:10px;color:var(--text3)">充值获得</div>
       </div>
       <div class="card" style="text-align:center">
         <div style="font-size:11px;color:var(--text3)">冻结金币</div>
         <div style="font-size:28px;font-weight:800;color:var(--warning);margin:6px 0" id="walletFrozenCoins">0</div>
-        <div style="font-size:11px;color:var(--text3)">交易保证金</div>
+        <div style="font-size:10px;color:var(--text3)">交易保证金</div>
       </div>
       <div class="card" style="text-align:center">
         <div style="font-size:11px;color:var(--text3)">服务费抵扣</div>
         <div style="font-size:28px;font-weight:800;color:var(--info);margin:6px 0" id="walletFeeCredits">0</div>
-        <div style="font-size:11px;color:var(--text3)">可抵扣服务费</div>
+        <div style="font-size:10px;color:var(--text3)">可抵扣服务费</div>
       </div>
       <div class="card">
         <div class="stat-row"><span>累计消费</span><span id="walletCoinSpending" style="font-weight:700">0</span></div>
@@ -298,9 +332,9 @@ textarea{min-height:60px;resize:vertical}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
       <div class="card">
-        <h3 style="font-size:14px;margin-bottom:10px">🎫 兑换码</h3>
+        <h3 style="font-size:14px;margin-bottom:10px">兑换码 / 邀请码</h3>
         <div style="display:flex;gap:8px">
-          <input type="text" id="redeemCode" placeholder="输入兑换码" style="flex:1">
+          <input type="text" id="redeemCode" placeholder="输入码（U开头=邀请码，COIN-=兑换码）" style="flex:1;text-transform:uppercase">
           <button class="btn btn-primary btn-sm" onclick="doRedeem()">兑换</button>
         </div>
       </div>
@@ -347,6 +381,7 @@ textarea{min-height:60px;resize:vertical}
         </div>
       </div>
       <div class="form-group"><label>邮箱验证码</label><input type="text" id="regCode" placeholder="6位数字验证码" maxlength="6" inputmode="numeric"></div>
+      <div class="form-group"><label>邀请码（可选）</label><input type="text" id="regInvite" placeholder="如 U384729" maxlength="10" style="text-transform:uppercase"></div>
       <div class="form-group"><label>密码</label>
         <div style="position:relative"><input type="password" id="regPassword" placeholder="至少6位" style="padding-right:36px"><button type="button" onclick="togglePwd('regPassword',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">👁</button></div>
       </div>
@@ -417,7 +452,7 @@ async function api(path,opts){opts=opts||{};var h={'Content-Type':'application/j
 
 function showPage(name){
   currentPage=name;
-  ['home','browse','sell','orders','wallet'].forEach(function(p){
+  ['home','browse','sell','orders','tasks','wallet'].forEach(function(p){
     var el=document.getElementById('page-'+p);if(el)el.classList.toggle('hidden',p!==name);
   });
   document.querySelectorAll('#mainNav button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-page')===name);});
@@ -425,6 +460,7 @@ function showPage(name){
   if(name==='browse')loadListings();
   if(name==='sell'){if(!token){showAuthModal();return;}loadMyListings();}
   if(name==='orders'){if(!token){showAuthModal();return;}loadOrders('buyer');}
+  if(name==='tasks'){if(!token){showAuthModal();return;}loadTasks();}
   if(name==='wallet'){if(!token){showAuthModal();return;}loadWallet();}
 }
 
@@ -471,11 +507,20 @@ document.addEventListener('DOMContentLoaded',function(){
       document.getElementById('modeSharedLabel').style.borderColor=this.value==='shared'?'var(--primary)':'var(--border)';
     });
   });
+  // Auto-fill invite code from URL parameter
+  var urlParams=new URLSearchParams(window.location.search);
+  var inviteFromUrl=urlParams.get('invite');
+  if(inviteFromUrl){
+    var inviteInput=document.getElementById('regInvite');
+    if(inviteInput)inviteInput.value=inviteFromUrl;
+    // Show auth modal if not logged in
+    if(!token&&!currentUser)showAuthModal();
+  }
 });
 function switchAuthTab(t){document.getElementById('loginForm').classList.toggle('hidden',t!=='login');document.getElementById('registerForm').classList.toggle('hidden',t!=='register');document.getElementById('authTabLogin').classList.toggle('btn-primary',t==='login');document.getElementById('authTabLogin').classList.toggle('btn-outline',t!=='login');document.getElementById('authTabRegister').classList.toggle('btn-primary',t==='register');document.getElementById('authTabRegister').classList.toggle('btn-outline',t!=='register');}
 
 async function doLogin(){try{var d=await api('/auth/login',{method:'POST',body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('登录成功');if(_pendingBuyId){var bid=_pendingBuyId;_pendingBuyId=null;buyListing(bid);}else{showPage(currentPage);}}catch(e){toast(e.message,'error');}}
-async function doRegister(){try{var d=await api('/auth/register',{method:'POST',body:JSON.stringify({username:document.getElementById('regUsername').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPassword').value,code:document.getElementById('regCode').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('注册成功');showPage(currentPage);}catch(e){toast(e.message,'error');}}
+async function doRegister(){try{var inviteVal=document.getElementById('regInvite')?document.getElementById('regInvite').value.trim():'';var d=await api('/auth/register',{method:'POST',body:JSON.stringify({username:document.getElementById('regUsername').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPassword').value,code:document.getElementById('regCode').value,inviteCode:inviteVal||undefined})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('注册成功，获得 10 免费币！');if(inviteVal){api('/tasks/use-invite',{method:'POST',body:JSON.stringify({code:inviteVal})}).catch(function(e){});}showPage(currentPage);}catch(e){toast(e.message,'error');}}
 
 var _sendCodeTimer=null;
 async function doSendCode(){
@@ -512,7 +557,9 @@ function updateUI(){
   document.getElementById('frozenDisplay').classList.toggle('hidden',!ok);
   if(currentUser){
     document.getElementById('userDisplay').textContent=currentUser.username;
-    document.getElementById('balanceDisplay').textContent=fmtCoins(currentUser.coins)+' 金币';
+    var fc=currentUser.freeCoins||0;
+    var pc=currentUser.coins||0;
+    document.getElementById('balanceDisplay').textContent='免费:'+fc+' | 付费:'+fmtCoins(pc);
     var fb=currentUser.frozenBalance||0;
     document.getElementById('frozenDisplay').textContent=fb>0?'🔒'+fb.toFixed(2):'';
   }
@@ -714,14 +761,14 @@ async function doRotateKey(){
     result.style.background='rgba(16,185,129,0.1)';
     result.style.color='var(--success)';
     result.innerHTML='✅ Key 更换成功！'+(d.buyerCount>0?d.buyerCount+' 个买家将自动使用新 Key':'')+
-      (d.verification?('<br>模型验证: '+(d.verification.valid?'全部通过':'部分缺失 - '+d.verification.missing.join(', '))):'');
+      (d.verification?('<br>模型验证: '+(d.verification.valid?'全部通过':'部分缺失 - '+esc(d.verification.missing.join(', ')))):'');
     btn.textContent='已完成';
     loadMyListings();
   }catch(e){
     result.style.display='block';
     result.style.background='rgba(239,68,68,0.1)';
     result.style.color='var(--error)';
-    result.innerHTML='❌ '+e.message;
+    result.innerHTML='❌ '+esc(e.message);
     btn.disabled=false;btn.textContent='重试';
   }
 }
@@ -916,11 +963,82 @@ async function loadOrders(role){
 async function confirmOrder(id){try{await api('/orders/'+id+'/confirm',{method:'POST'});toast('已确认收货，资金已转给卖家');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
 async function disputeOrder(id){var reason=prompt('请输入申诉原因：');if(!reason)return;try{await api('/orders/'+id+'/dispute',{method:'POST',body:JSON.stringify({reason:reason})});toast('申诉成功，资金已退回');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
 
+// ========== Tasks ==========
+async function loadTasks(){
+  if(!token)return;
+  try{
+    var d=await api('/tasks');
+    // Update balance cards
+    document.getElementById('taskFreeCoins').textContent=d.freeCoins||0;
+    document.getElementById('taskPaidCoins').textContent=fmtCoins(d.coins);
+    // Load invite code and build link
+    try{
+      var inv=await api('/tasks/invite-code');
+      if(inv.code){
+        document.getElementById('taskInviteCode').textContent=inv.code;
+        var inviteLink=window.location.origin+'/market?invite='+inv.code;
+        document.getElementById('taskInviteLink').textContent=inviteLink;
+      }
+    }catch(e){}
+    // Render task list
+    var el=document.getElementById('taskList');
+    if(!d.tasks||!d.tasks.length){el.innerHTML='<div class="empty">暂无任务</div>';return;}
+    var categoryNames={daily:'每日任务',setup:'新手任务',marketplace:'市场任务',social:'社交任务',milestone:'里程碑'};
+    var grouped={};
+    d.tasks.forEach(function(t){
+      var c=t.category||'other';
+      if(!grouped[c])grouped[c]=[];
+      grouped[c].push(t);
+    });
+    var html='';
+    Object.keys(grouped).forEach(function(cat){
+      html+='<div style="margin-bottom:16px">';
+      html+='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">'+(categoryNames[cat]||cat)+'</div>';
+      grouped[cat].forEach(function(t){
+        var statusHtml=t.type==='auto'?'<span class="badge badge-blue">已领 '+t.autoCount+' 次</span>':t.completed?'<span class="badge badge-green">已完成</span>':'<span class="badge badge-yellow">待领取</span>';
+        var btnHtml=t.type==='auto'?'<span style="font-size:11px;color:var(--text3)">完成后自动发放</span>':(t.claimable&&!t.completed?'<button class="btn btn-sm btn-primary" onclick="claimTask(\''+t.id+'\')">领取 '+t.reward+' 币</button>':'');
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">';
+        html+='<div><div style="font-weight:600;font-size:13px">'+t.name+'</div><div style="font-size:11px;color:var(--text3)">'+t.description+'</div></div>';
+        html+='<div style="display:flex;align-items:center;gap:8px">'+statusHtml+btnHtml+'</div>';
+        html+='</div>';
+      });
+      html+='</div>';
+    });
+    el.innerHTML=html;
+  }catch(e){toast('加载任务失败','error');}
+}
+async function claimTask(taskId){
+  try{
+    var d=await api('/tasks/'+taskId+'/claim',{method:'POST'});
+    toast(d.message||'领取成功','success');
+    await checkAuth();
+    loadTasks();
+  }catch(e){toast(e.message,'error');}
+}
+function copyInviteLink(){
+  var text=document.getElementById('taskInviteLink').textContent;
+  if(!text||text==='-'){toast('请先登录并加载邀请码','error');return;}
+  // Try modern clipboard API first, fallback to textarea + execCommand
+  if(navigator.clipboard&&window.isSecureContext){
+    navigator.clipboard.writeText(text).then(function(){toast('邀请链接已复制','success');}).catch(function(){fallbackCopy(text);});
+  }else{
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  var ta=document.createElement('textarea');
+  ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');toast('邀请链接已复制','success');}catch(e){prompt('请手动复制邀请链接：',text);}
+  document.body.removeChild(ta);
+}
+
 async function loadWallet(){
   if(!token)return;
   try{
     // Load coin balance
     var coin=await api('/coin/balance');
+    document.getElementById('walletFreeCoins').textContent=coin.freeCoins||0;
     document.getElementById('walletCoins').textContent=fmtCoins(coin.coins);
     document.getElementById('walletFrozenCoins').textContent=fmtCoins(coin.frozenCoins);
     document.getElementById('walletFeeCredits').textContent=fmtCoins(coin.feeCredits);
@@ -969,11 +1087,12 @@ async function doRecharge(){
 
 async function doRedeem(){
   var code=document.getElementById('redeemCode').value.trim();
-  if(!code){toast('请输入兑换码','error');return;}
+  if(!code){toast('请输入兑换码或邀请码','error');return;}
   try{
-    var r=await api('/coin/redeem',{method:'POST',body:JSON.stringify({code:code})});
+    var r=await api('/redeem',{method:'POST',body:JSON.stringify({code:code})});
     toast(r.message,'success');
     document.getElementById('redeemCode').value='';
+    await checkAuth();
     loadWallet();
   }catch(e){toast(e.message,'error');}
 }

@@ -16,33 +16,54 @@ const healthCheck = require('./services/healthCheck');
 
 const app = express();
 
+// Trust reverse proxy (Render, Cloudflare, nginx) — makes req.ip return real client IP
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(securityHeaders);
 app.use(auditLog);
 
 // CORS - restrict in production
+const configuredOrigin = process.env.CORS_ORIGIN;
 const corsOptions = process.env.NODE_ENV === 'production'
-  ? { origin: process.env.CORS_ORIGIN || '*', methods: ['GET', 'POST', 'PUT', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization'] }
+  ? {
+      origin: configuredOrigin
+        ? configuredOrigin.split(',').map(o => o.trim())
+        : '*',
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    }
   : {};
 app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 
-// Dashboard
-const dashboardHtml = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
-app.get('/', (req, res) => {
-  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.type('html').send(dashboardHtml);
-});
+// Dashboard & Marketplace — dev mode reads file on each request, prod caches in memory
+const isDev = process.env.NODE_ENV !== 'production';
+if (isDev) {
+  app.get(['/', '/market'], (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.type('html').send(fs.readFileSync(path.join(__dirname, 'marketplace.html'), 'utf8'));
+  });
+  app.get(['/admin', '/dashboard'], (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.type('html').send(fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8'));
+  });
+} else {
+  const dashboardHtml = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
+  const marketHtml = fs.readFileSync(path.join(__dirname, 'marketplace.html'), 'utf8');
+  app.get(['/', '/market'], (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.type('html').send(marketHtml);
+  });
+  app.get(['/admin', '/dashboard'], (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.type('html').send(dashboardHtml);
+  });
+}
 
-// Marketplace page
-const marketHtml = fs.readFileSync(path.join(__dirname, 'marketplace.html'), 'utf8');
-app.get('/market', (req, res) => {
-  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.type('html').send(marketHtml);
-});
+// Static public files (WeChat verification, etc.)
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Static fix files (CSS, JS, PWA assets)
 app.use('/fixes', express.static(path.join(__dirname, 'fixes'), {
@@ -73,75 +94,39 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Public models
+const { MODELS } = require('./data/models');
+const PROVIDER_ALIAS = { openrouter: 'openrouter-free', google: 'google-ai', nvidia: 'nvidia-nim', github: 'github-models' };
 app.get('/api/models', (req, res) => {
-  const freeModels = [
-    // OpenRouter 免费模型
-    { id: 'deepseek/deepseek-v4-flash:free', name: 'DeepSeek V4 Flash', free: true, provider: 'openrouter-free' },
-    { id: 'google/gemma-4-31b-it:free', name: 'Google Gemma 4 31B', free: true, provider: 'openrouter-free' },
-    { id: 'google/gemma-4-26b-a4b-it:free', name: 'Google Gemma 4 26B', free: true, provider: 'openrouter-free' },
-    { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'NVIDIA Nemotron 3 Super 120B', free: true, provider: 'openrouter-free' },
-    { id: 'nvidia/nemotron-3-nano-30b-a3b:free', name: 'NVIDIA Nemotron 3 Nano 30B', free: true, provider: 'openrouter-free' },
-    { id: 'minimax/minimax-m2.5:free', name: 'MiniMax M2.5', free: true, provider: 'openrouter-free' },
-    { id: 'poolside/laguna-m.1:free', name: 'Poolside Laguna M.1', free: true, provider: 'openrouter-free' },
-    { id: 'baidu/cobuddy:free', name: 'Baidu CoBuddy', free: true, provider: 'openrouter-free' },
-    { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 Llama 405B', free: true, provider: 'openrouter-free' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', free: true, provider: 'openrouter-free' },
-    { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B', free: true, provider: 'openrouter-free' },
-    { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B', free: true, provider: 'openrouter-free' },
-    { id: 'qwen/qwen3-coder:free', name: 'Qwen3 Coder', free: true, provider: 'openrouter-free' },
-    { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B', free: true, provider: 'openrouter-free' },
-    { id: 'z-ai/glm-4.5-air:free', name: 'GLM 4.5 Air', free: true, provider: 'openrouter-free' },
-    // Groq 免费模型
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)', free: true, provider: 'groq' },
-    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', free: true, provider: 'groq' },
-    { id: 'llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout (Groq)', free: true, provider: 'groq' },
-    { id: 'qwen/qwen3-32b', name: 'Qwen3 32B (Groq)', free: true, provider: 'groq' },
-    // Cerebras 免费模型
-    { id: 'llama3.1-8b', name: 'Llama 3.1 8B (Cerebras)', free: true, provider: 'cerebras' },
-    { id: 'gpt-oss-120b', name: 'GPT-OSS 120B (Cerebras)', free: true, provider: 'cerebras' },
-    // SambaNova 免费模型
-    { id: 'DeepSeek-V3-0324', name: 'DeepSeek V3 (SambaNova)', free: true, provider: 'sambanova' },
-    { id: 'DeepSeek-R1-Distill-Llama-70B', name: 'DeepSeek R1 Distill 70B (SambaNova)', free: true, provider: 'sambanova' },
-    { id: 'Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (SambaNova)', free: true, provider: 'sambanova' },
-    // Google AI Studio 免费模型
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Google)', free: true, provider: 'google-ai' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Google)', free: true, provider: 'google-ai' },
-    { id: 'gemma-3-27b-it', name: 'Gemma 3 27B (Google)', free: true, provider: 'google-ai' },
-    // Mistral 免费模型
-    { id: 'mistral-small-latest', name: 'Mistral Small (Mistral)', free: true, provider: 'mistral' },
-    { id: 'mistral-medium-latest', name: 'Mistral Medium (Mistral)', free: true, provider: 'mistral' },
-    { id: 'codestral-latest', name: 'Codestral (Mistral)', free: true, provider: 'mistral' },
-    { id: 'pixtral-large-latest', name: 'Pixtral Large (Mistral)', free: true, provider: 'mistral' },
-    // NVIDIA NIM 免费模型
-    { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (NVIDIA)', free: true, provider: 'nvidia-nim' },
-    { id: 'deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Qwen 32B (NVIDIA)', free: true, provider: 'nvidia-nim' },
-    // Cohere 免费模型
-    { id: 'command-a-03-2025', name: 'Command A (Cohere)', free: true, provider: 'cohere' },
-    { id: 'command-r-plus-08-2024', name: 'Command R Plus (Cohere)', free: true, provider: 'cohere' },
-    { id: 'command-r-08-2024', name: 'Command R (Cohere)', free: true, provider: 'cohere' },
-    // GitHub Models 免费模型
-    { id: 'gpt-4o', name: 'GPT-4o (GitHub)', free: true, provider: 'github-models' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini (GitHub)', free: true, provider: 'github-models' },
-    { id: 'DeepSeek-R1', name: 'DeepSeek R1 (GitHub)', free: true, provider: 'github-models' },
-    { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (GitHub)', free: true, provider: 'github-models' },
-    // 付费模型
-    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', free: false, provider: 'paid' },
-    { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', free: false, provider: 'paid' },
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', free: false, provider: 'paid' },
-    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', free: false, provider: 'paid' },
-    { id: 'qwen-plus', name: 'Qwen Plus', free: false, provider: 'paid' },
-    { id: 'glm-4', name: 'GLM-4', free: false, provider: 'paid' },
-  ];
-  res.json({ object: 'list', data: freeModels });
+  const data = MODELS.map(m => ({
+    ...m,
+    provider: PROVIDER_ALIAS[m.provider] || m.provider,
+  }));
+  res.json({ object: 'list', data });
 });
 
 // API routes
 app.use('/v1', auth, rateLimit, v1Routes);
 
-// Admin login (no auth required)
+// Admin login (no auth required) — with rate limiting
 const crypto = require('crypto');
 const ADMIN_HASHED_TOKEN = 'adm_' + crypto.createHash('sha256').update(config.adminPassword + 'admin-salt').digest('hex').slice(0, 32);
+const adminLoginAttempts = {};
+setInterval(() => {
+  const cutoff = Date.now() - 300000;
+  for (const key in adminLoginAttempts) {
+    if (adminLoginAttempts[key].ts < cutoff) delete adminLoginAttempts[key];
+  }
+}, 300000);
 app.post('/api/admin/login', (req, res) => {
+  const ip = req.ip;
+  const now = Date.now();
+  if (!adminLoginAttempts[ip]) adminLoginAttempts[ip] = { count: 0, ts: now };
+  // Reset window after 1 minute
+  if (now - adminLoginAttempts[ip].ts > 60000) adminLoginAttempts[ip] = { count: 0, ts: now };
+  adminLoginAttempts[ip].count++;
+  if (adminLoginAttempts[ip].count > 5) {
+    return res.status(429).json({ error: { message: '登录尝试过于频繁，请 1 分钟后再试' } });
+  }
   const { password } = req.body;
   if (password !== config.adminPassword) {
     return res.status(401).json({ error: { message: 'Invalid password' } });
@@ -171,14 +156,33 @@ if (!process.env.VERCEL) {
   app.listen(config.port, () => {
     console.log('');
     console.log('========================================');
-    console.log('  LLM API Relay Station v2.0');
+    console.log('  LLM API Relay Station v2.1');
     console.log('========================================');
     console.log(`  Port: ${config.port}`);
     console.log(`  Dashboard: http://localhost:${config.port}`);
-    console.log(`  Admin Password: ${config.adminPassword}`);
     console.log(`  Providers: ${store.getProviders().map(p => p.name).join(', ') || 'none'}`);
     console.log(`  API Keys: ${store.getApiKeys().length}`);
     console.log('========================================');
+
+    // Security warnings for insecure defaults
+    const warnings = [];
+    if (!process.env.ADMIN_PASSWORD || config.adminPassword === 'admin123') {
+      warnings.push('ADMIN_PASSWORD 使用默认值，请在环境变量中设置强密码');
+    }
+    if (!process.env.JWT_SECRET) {
+      warnings.push('JWT_SECRET 未设置，使用硬编码默认值（不安全）');
+    }
+    if (!process.env.MARKET_ENCRYPT_KEY) {
+      warnings.push('MARKET_ENCRYPT_KEY 未设置，API Key 加密不安全');
+    }
+    if (!process.env.SMTP_USER) {
+      warnings.push('SMTP 未配置，邮箱验证码只打印到控制台');
+    }
+    if (warnings.length > 0) {
+      console.log('');
+      console.log('  ⚠️  安全警告:');
+      warnings.forEach(w => console.log(`  → ${w}`));
+    }
     console.log('');
 
     healthCheck.start();

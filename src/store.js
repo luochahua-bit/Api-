@@ -1,5 +1,10 @@
 const fs = require('fs');
+const path = require('path');
 const config = require('./config');
+
+const BACKUP_DIR = path.join(config.dataDir, 'backups');
+const MAX_BACKUPS = 10;
+const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 class Store {
   constructor() {
@@ -23,9 +28,14 @@ class Store {
       verificationCodes: [], // { id, email, code, expiresAt, used, createdAt }
       // Payment orders
       paymentOrders: [],   // { id, userId, amount, status, createdAt, paidAt }
+      // Task system
+      taskCompletions: [], // { id, userId, taskId, reward, date, createdAt }
+      inviteCodes: [],     // { userId, code, usedBy: [], createdAt }
     };
     this.saveTimer = null;
+    this.backupTimer = null;
     this.load();
+    this.initBackup();
   }
 
   load() {
@@ -39,13 +49,21 @@ class Store {
         this.state.coinTransactions = this.state.coinTransactions || [];
         this.state.verificationCodes = this.state.verificationCodes || [];
         this.state.paymentOrders = this.state.paymentOrders || [];
+        this.state.taskCompletions = this.state.taskCompletions || [];
+        this.state.inviteCodes = this.state.inviteCodes || [];
         console.log('[Store] Loaded data from', config.dbPath);
       } else {
         this.seedFromEnv();
       }
     } catch (err) {
-      console.error('[Store] Failed to load, seeding from .env:', err.message);
-      this.seedFromEnv();
+      console.error('[Store] Failed to load:', err.message);
+      // Try to recover from latest backup instead of overwriting with demo data
+      if (this.recoverFromBackup()) {
+        console.log('[Store] Recovered from backup');
+      } else {
+        console.warn('[Store] No backup available, seeding from env');
+        this.seedFromEnv();
+      }
     }
   }
 
@@ -195,23 +213,99 @@ class Store {
     }
   }
 
+  // Atomic write: write to temp file, then rename (prevents half-written corruption)
   save() {
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
-      try {
-        fs.writeFileSync(config.dbPath, JSON.stringify(this.state, null, 2));
-      } catch (err) {
-        console.error('[Store] Failed to save:', err.message);
-      }
+      this.atomicWrite();
       this.saveTimer = null;
     }, 2000);
   }
 
   forceSave() {
+    this.atomicWrite();
+  }
+
+  atomicWrite() {
+    const tmpPath = config.dbPath + '.tmp';
     try {
-      fs.writeFileSync(config.dbPath, JSON.stringify(this.state, null, 2));
+      fs.writeFileSync(tmpPath, JSON.stringify(this.state, null, 2));
+      fs.renameSync(tmpPath, config.dbPath);
     } catch (err) {
-      console.error('[Store] Failed to force save:', err.message);
+      console.error('[Store] Failed to save:', err.message);
+      // Clean up temp file if it exists
+      try { fs.unlinkSync(tmpPath); } catch (_) {}
+    }
+  }
+
+  // ========== Backup System ==========
+
+  initBackup() {
+    // Ensure backup directory exists
+    if (!fs.existsSync(BACKUP_DIR)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+    // Backup on startup (if db exists and is healthy)
+    if (fs.existsSync(config.dbPath)) {
+      this.backup();
+    }
+    // Periodic backup every hour
+    this.backupTimer = setInterval(() => this.backup(), BACKUP_INTERVAL_MS);
+  }
+
+  backup() {
+    try {
+      if (!fs.existsSync(config.dbPath)) return;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const backupPath = path.join(BACKUP_DIR, `db-${timestamp}.json`);
+      fs.copyFileSync(config.dbPath, backupPath);
+      this.cleanOldBackups();
+    } catch (err) {
+      console.error('[Store] Backup failed:', err.message);
+    }
+  }
+
+  cleanOldBackups() {
+    try {
+      const files = fs.readdirSync(BACKUP_DIR)
+        .filter(f => f.startsWith('db-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+      // Keep only the newest MAX_BACKUPS files
+      for (let i = MAX_BACKUPS; i < files.length; i++) {
+        fs.unlinkSync(path.join(BACKUP_DIR, files[i]));
+      }
+    } catch (err) {
+      console.error('[Store] Cleanup failed:', err.message);
+    }
+  }
+
+  recoverFromBackup() {
+    try {
+      if (!fs.existsSync(BACKUP_DIR)) return false;
+      const files = fs.readdirSync(BACKUP_DIR)
+        .filter(f => f.startsWith('db-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+      if (files.length === 0) return false;
+      // Try each backup from newest to oldest
+      for (const file of files) {
+        try {
+          const backupPath = path.join(BACKUP_DIR, file);
+          const data = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+          this.state = { ...this.state, ...data };
+          // Restore to main db file
+          this.atomicWrite();
+          console.log('[Store] Recovered from backup:', file);
+          return true;
+        } catch (_) {
+          continue;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.error('[Store] Recovery failed:', err.message);
+      return false;
     }
   }
 
@@ -661,6 +755,80 @@ class Store {
 
   getUserPaymentOrders(userId) {
     return this.state.paymentOrders.filter(o => o.userId === userId);
+  }
+
+  // ========== Free Coins + Task System ==========
+
+  // Add free coins to user (from task rewards)
+  addFreeCoins(userId, amount, description) {
+    const user = this.getUserById(userId);
+    if (!user) return false;
+    user.freeCoins = (user.freeCoins || 0) + amount;
+    this.addCoinTransaction(userId, 'task_reward', amount, description);
+    this.save();
+    return true;
+  }
+
+  // Spend coins: free coins first, then paid coins
+  spendCoins(userId, amount, description) {
+    const user = this.getUserById(userId);
+    if (!user) return { success: false, error: '用户不存在' };
+
+    const freeCoins = user.freeCoins || 0;
+    const paidCoins = user.coins || 0;
+    const total = freeCoins + paidCoins;
+
+    if (total < amount) return { success: false, error: '金币不足' };
+
+    let fromFree = Math.min(freeCoins, amount);
+    let fromPaid = amount - fromFree;
+
+    user.freeCoins = freeCoins - fromFree;
+    user.coins = paidCoins - fromPaid;
+    user.totalCoinSpending = (user.totalCoinSpending || 0) + amount;
+
+    if (fromFree > 0) this.addCoinTransaction(userId, 'spend_free', -fromFree, description + ' (免费币)');
+    if (fromPaid > 0) this.addCoinTransaction(userId, 'spend', -fromPaid, description + ' (付费币)');
+
+    this.save();
+    return { success: true, fromFree, fromPaid };
+  }
+
+  // Record task completion
+  addTaskCompletion(userId, taskId, reward) {
+    const today = new Date().toISOString().slice(0, 10);
+    this.state.taskCompletions.push({
+      id: 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      userId, taskId, reward, date: today, createdAt: Date.now(),
+    });
+    this.save();
+  }
+
+  // Get user's task completions
+  getTaskCompletions(userId) {
+    return this.state.taskCompletions.filter(c => c.userId === userId);
+  }
+
+  // Invite codes
+  addInviteCode(userId, code) {
+    if (this.state.inviteCodes.find(c => c.userId === userId)) return false;
+    this.state.inviteCodes.push({ userId, code, usedBy: [], createdAt: Date.now() });
+    this.save();
+    return true;
+  }
+
+  getInviteCode(code) {
+    return this.state.inviteCodes.find(c => c.code === code);
+  }
+
+  useInviteCode(code, newUserId) {
+    const invite = this.state.inviteCodes.find(c => c.code === code);
+    if (!invite) return { success: false, error: '邀请码无效' };
+    if (invite.userId === newUserId) return { success: false, error: '不能使用自己的邀请码' };
+    if (invite.usedBy.includes(newUserId)) return { success: false, error: '已使用过此邀请码' };
+    invite.usedBy.push(newUserId);
+    this.save();
+    return { success: true, inviterId: invite.userId };
   }
 }
 

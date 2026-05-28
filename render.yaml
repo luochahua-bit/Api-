@@ -14,7 +14,7 @@ services:
       - key: API_KEYS
         generateValue: true
       - key: CORS_ORIGIN
-        value: "\"*\""
+        value: "https://llm-api-relay.onrender.com"
       - key: RATE_LIMIT_WINDOW_MS
         value: "60000"
       - key: RATE_LIMIT_MAX_REQUESTS

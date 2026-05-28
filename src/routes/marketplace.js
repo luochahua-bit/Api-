@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const axios = require('axios');
 const { sanitizeResponse, sanitizeStreamChunk, logIncident } = require('../services/security');
 const { generateCode, sendVerificationEmail } = require('../services/email');
+const { validateEmail, normalizeEmail } = require('../utils/emailValidator');
+const { generateFreeKey, FREE_DAILY_LIMIT } = require('../utils/freeKeyManager');
 const { createPaymentOrder, processSimulatedPayment, getUserPayments } = require('../services/payment');
 const store = require('../store');
 const userAuth = require('../middleware/userAuth');
@@ -23,22 +25,47 @@ const router = Router();
 
 // Send verification code
 const sendCodeLimiter = {};
+const ipRegisterLimiter = {};
+// Clean up expired rate limit entries every 5 minutes to prevent memory leak
+setInterval(() => {
+  const cutoff = Date.now() - 300000; // 5 minutes ago
+  const ipCutoff = Date.now() - 3600000; // 1 hour ago
+  for (const key in sendCodeLimiter) {
+    if (sendCodeLimiter[key] < cutoff) delete sendCodeLimiter[key];
+  }
+  for (const key in ipRegisterLimiter) {
+    if (ipRegisterLimiter[key].ts < ipCutoff) delete ipRegisterLimiter[key];
+  }
+}, 300000);
 router.post('/auth/send-code', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: { message: '请输入邮箱' } });
-  // Rate limit: 60 seconds per email
+
+  // IP registration rate limit: max 3 per hour per IP
+  const ip = req.ip;
   const now = Date.now();
-  if (sendCodeLimiter[email] && now - sendCodeLimiter[email] < 60000) {
-    const wait = Math.ceil((60000 - (now - sendCodeLimiter[email])) / 1000);
+  if (!ipRegisterLimiter[ip]) ipRegisterLimiter[ip] = { count: 0, ts: now };
+  if (now - ipRegisterLimiter[ip].ts > 3600000) ipRegisterLimiter[ip] = { count: 0, ts: now };
+  ipRegisterLimiter[ip].count++;
+  if (ipRegisterLimiter[ip].count > 3) {
+    return res.status(429).json({ error: { message: '注册过于频繁，请 1 小时后再试' } });
+  }
+
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.valid) return res.status(400).json({ error: { message: emailCheck.reason } });
+  const normalizedEmail = normalizeEmail(email);
+  // Rate limit: 60 seconds per email
+  if (sendCodeLimiter[normalizedEmail] && now - sendCodeLimiter[normalizedEmail] < 60000) {
+    const wait = Math.ceil((60000 - (now - sendCodeLimiter[normalizedEmail])) / 1000);
     return res.status(429).json({ error: { message: `${wait} 秒后可重新发送` } });
   }
-  if (store.getUserByEmail(email)) return res.status(409).json({ error: { message: '邮箱已注册' } });
+  if (store.getUserByEmail(normalizedEmail)) return res.status(409).json({ error: { message: '邮箱已注册' } });
   const code = generateCode();
-  store.addVerificationCode({ id: 'vc_' + Date.now(), email, code, expiresAt: now + 5 * 60 * 1000, used: false, createdAt: now });
-  sendCodeLimiter[email] = now;
-  const result = await sendVerificationEmail(email, code);
+  store.addVerificationCode({ id: 'vc_' + Date.now(), email: normalizedEmail, code, expiresAt: now + 5 * 60 * 1000, used: false, createdAt: now });
+  sendCodeLimiter[normalizedEmail] = now;
+  const result = await sendVerificationEmail(normalizedEmail, code);
   if (result.success) {
-    res.json({ success: true, message: '验证码已发送到 ' + email, simulated: result.simulated || false });
+    res.json({ success: true, message: '验证码已发送到 ' + normalizedEmail, simulated: result.simulated || false });
   } else {
     res.status(500).json({ error: { message: '发送失败: ' + result.error } });
   }
@@ -48,11 +75,14 @@ router.post('/auth/send-code', async (req, res) => {
 router.post('/auth/verify-email', (req, res) => {
   const { email, code } = req.body;
   if (!email || !code) return res.status(400).json({ error: { message: '邮箱和验证码必填' } });
-  const vc = store.getValidVerificationCode(email, code);
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.valid) return res.status(400).json({ error: { message: emailCheck.reason } });
+  const normalizedEmail = normalizeEmail(email);
+  const vc = store.getValidVerificationCode(normalizedEmail, code);
   if (!vc) return res.status(400).json({ error: { message: '验证码无效或已过期' } });
-  store.markCodeUsed(email);
+  store.markCodeUsed(normalizedEmail);
   // Mark user as verified
-  const user = store.getUserByEmail(email);
+  const user = store.getUserByEmail(normalizedEmail);
   if (user) store.updateUser(user.id, { emailVerified: true });
   res.json({ success: true, message: '邮箱验证成功' });
 });
@@ -60,28 +90,34 @@ router.post('/auth/verify-email', (req, res) => {
 router.post('/auth/register', async (req, res) => {
   const { username, password, email, code } = req.body;
   if (!username || !password || !email || !code) return res.status(400).json({ error: { message: '用户名、密码、邮箱、验证码必填' } });
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.valid) return res.status(400).json({ error: { message: emailCheck.reason } });
+  const normalizedEmail = normalizeEmail(email);
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: { message: '用户名 3-20 个字符' } });
   if (password.length < 6) return res.status(400).json({ error: { message: '密码至少 6 位' } });
   if (store.getUserByUsername(username)) return res.status(409).json({ error: { message: '用户名已存在' } });
-  if (store.getUserByEmail(email)) return res.status(409).json({ error: { message: '邮箱已注册' } });
+  if (store.getUserByEmail(normalizedEmail)) return res.status(409).json({ error: { message: '邮箱已注册' } });
   // Verify code
-  const vc = store.getValidVerificationCode(email, code);
+  const vc = store.getValidVerificationCode(normalizedEmail, code);
   if (!vc) return res.status(400).json({ error: { message: '验证码无效或已过期' } });
-  store.markCodeUsed(email);
+  store.markCodeUsed(normalizedEmail);
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const user = {
-    id: genId('usr'), username, password: hashedPassword, email,
+    id: genId('usr'), username, password: hashedPassword, email: normalizedEmail,
+    nickname: '', bio: '',
     role: 'buyer',
-    coins: 0, frozenCoins: 0, totalCoinEarnings: 0, totalCoinSpending: 0, feeCredits: 0,
+    coins: 0, freeCoins: 0, frozenCoins: 0, totalCoinEarnings: 0, totalCoinSpending: 0, feeCredits: 0,
     balance: 0, frozenBalance: 0, totalEarnings: 0, totalSpending: 0,
     emailVerified: true, // verified during registration
     rating: 5.0, ratingCount: 0, createdAt: Date.now(), enabled: true,
   };
   store.addUser(user);
+  // Auto-generate free API key
+  const { key: freeKey } = generateFreeKey(user.id, username);
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
   const { password: _, ...safeUser } = user;
-  res.json({ success: true, token, user: safeUser });
+  res.json({ success: true, token, user: safeUser, freeApiKey: freeKey, freeDailyLimit: FREE_DAILY_LIMIT });
 });
 
 router.post('/auth/login', async (req, res) => {
@@ -92,7 +128,6 @@ router.post('/auth/login', async (req, res) => {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ error: { message: '用户名或密码错误' } });
   if (!user.enabled) return res.status(403).json({ error: { message: '账号已被禁用' } });
-  if (user.emailVerified === false) return res.status(403).json({ error: { message: '请先验证邮箱后再登录' } });
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
   const { password: _, ...safeUser } = user;
   res.json({ success: true, token, user: safeUser });
@@ -104,14 +139,131 @@ router.get('/auth/profile', userAuth, (req, res) => {
 });
 
 router.put('/auth/profile', userAuth, async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, nickname, bio, phone } = req.body;
   const changes = {};
-  if (email) changes.email = email;
+  if (email) {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) return res.status(400).json({ error: { message: emailCheck.reason } });
+    changes.email = normalizeEmail(email);
+  }
   if (password) changes.password = await bcrypt.hash(password, 10);
+  if (nickname !== undefined) {
+    const n = nickname.trim();
+    if (n.length < 2 || n.length > 20) return res.status(400).json({ error: { message: '昵称 2-20 个字符' } });
+    changes.nickname = n;
+  }
+  if (bio !== undefined) {
+    const b = bio.trim();
+    if (b.length > 100) return res.status(400).json({ error: { message: '简介最多 100 字符' } });
+    changes.bio = b;
+  }
+  if (phone !== undefined) {
+    const p = phone.trim().replace(/\s/g, '');
+    if (p && !/^1[3-9]\d{9}$/.test(p) && !/^\+\d{7,15}$/.test(p)) {
+      return res.status(400).json({ error: { message: '手机号格式不正确' } });
+    }
+    changes.phone = p;
+  }
   store.updateUser(req.userId, changes);
   const user = store.getUserById(req.userId);
   const { password: _, ...safeUser } = user;
   res.json({ success: true, user: safeUser });
+});
+
+// ==================== Tasks ====================
+
+const { TASKS, generateInviteCode, isDailyTaskDone, isOnceTaskDone, getTasksForUser } = require('../tasks');
+
+// Get available tasks
+router.get('/tasks', userAuth, (req, res) => {
+  const completions = store.getTaskCompletions(req.userId);
+  const tasks = getTasksForUser(req.user, completions);
+  res.json({ tasks, freeCoins: req.user.freeCoins || 0, coins: req.user.coins || 0 });
+});
+
+// Claim task reward — with anti-abuse rate limiting
+const taskClaimLimiter = {};
+router.post('/tasks/:taskId/claim', userAuth, (req, res) => {
+  const { taskId } = req.params;
+
+  // Rate limit: max 10 task claims per minute per user
+  const now = Date.now();
+  const limiterKey = 'task_' + req.userId;
+  if (!taskClaimLimiter[limiterKey]) taskClaimLimiter[limiterKey] = [];
+  taskClaimLimiter[limiterKey] = taskClaimLimiter[limiterKey].filter(t => now - t < 60000);
+  if (taskClaimLimiter[limiterKey].length >= 10) {
+    return res.status(429).json({ error: { message: '操作过于频繁，请稍后再试' } });
+  }
+  taskClaimLimiter[limiterKey].push(now);
+
+  const task = TASKS.find(t => t.id === taskId);
+  if (!task) return res.status(404).json({ error: { message: '任务不存在' } });
+
+  // New account cooldown: daily tasks (sign-in) available immediately,
+  // other tasks require account to be at least 24 hours old
+  if (task.type !== 'daily') {
+    const accountAge = Date.now() - (req.user.createdAt || 0);
+    if (accountAge < 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: { message: '新注册用户需满 24 小时后才能领取此任务，请先签到' } });
+    }
+  }
+
+  const completions = store.getTaskCompletions(req.userId);
+
+  // Check if already completed
+  if (task.type === 'daily' && isDailyTaskDone(completions, taskId)) {
+    return res.status(400).json({ error: { message: '今天已签到，明天再来' } });
+  }
+  if (task.type === 'once' && isOnceTaskDone(completions, taskId)) {
+    return res.status(400).json({ error: { message: '此任务已完成' } });
+  }
+
+  // Task-specific validation
+  if (taskId === 'complete_profile') {
+    // Check if profile is actually complete (nickname + bio filled)
+    if (!req.user.nickname || !req.user.bio) {
+      return res.status(400).json({ error: { message: '请先完善个人资料（昵称 + 简介）' } });
+    }
+  }
+
+  // Record completion and award coins
+  store.addTaskCompletion(req.userId, taskId, task.reward);
+  store.addFreeCoins(req.userId, task.reward, '任务奖励: ' + task.name);
+
+  const user = store.getUserById(req.userId);
+  res.json({
+    success: true,
+    reward: task.reward,
+    freeCoins: user.freeCoins || 0,
+    message: `获得 ${task.reward} 免费币`,
+  });
+});
+
+// Get invite code
+router.get('/tasks/invite-code', userAuth, (req, res) => {
+  const existing = store.getInviteCode(req.userId);
+  if (existing) {
+    return res.json({ code: existing.code, usedCount: existing.usedBy.length });
+  }
+  const code = generateInviteCode(req.userId);
+  store.addInviteCode(req.userId, code);
+  res.json({ code, usedCount: 0 });
+});
+
+// Use invite code (during or after registration)
+router.post('/tasks/use-invite', userAuth, (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: { message: '请输入邀请码' } });
+
+  const result = store.useInviteCode(code.trim().toUpperCase(), req.userId);
+  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+
+  // Reward both inviter and invitee
+  store.addFreeCoins(result.inviterId, 50, '邀请奖励: 好友注册');
+  store.addFreeCoins(req.userId, 30, '被邀请奖励: 使用邀请码');
+  store.addTaskCompletion(req.userId, 'invite_friend', 50);
+
+  res.json({ success: true, message: '邀请码验证成功，你获得 30 免费币' });
 });
 
 // ==================== Listings ====================
@@ -550,6 +702,9 @@ router.post('/reviews', userAuth, (req, res) => {
     comment: comment || '', createdAt: Date.now(),
   };
   store.addReview(review);
+  // Auto-reward: review order task
+  store.addFreeCoins(req.userId, 5, '任务奖励: 评价订单');
+  store.addTaskCompletion(req.userId, 'review_order', 5);
 
   const sellerReviews = store.getReviewsBySeller(order.sellerId);
   const avgRating = sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length;
@@ -702,8 +857,9 @@ router.post('/v1/chat/completions', async (req, res) => {
 router.get('/coin/balance', userAuth, (req, res) => {
   res.json({
     coins: req.user.coins || 0,
+    freeCoins: req.user.freeCoins || 0,
+    totalCoins: (req.user.coins || 0) + (req.user.freeCoins || 0),
     frozenCoins: req.user.frozenCoins || 0,
-    availableCoins: req.user.coins || 0,
     feeCredits: req.user.feeCredits || 0,
     totalCoinEarnings: req.user.totalCoinEarnings || 0,
     totalCoinSpending: req.user.totalCoinSpending || 0,
@@ -720,7 +876,43 @@ router.get('/coin/transactions', userAuth, (req, res) => {
 // Rate limiter for redemption (5 attempts per minute per user)
 const redeemAttempts = {};
 
-// Redeem a code
+// Unified code redemption — auto-detects invite code vs redemption code
+router.post('/redeem', userAuth, (req, res) => {
+  const { code } = req.body;
+  if (!code || typeof code !== 'string') return res.status(400).json({ error: { message: '请输入兑换码或邀请码' } });
+
+  const trimmed = code.trim().toUpperCase();
+
+  // Rate limit: max 5 attempts per minute
+  const now = Date.now();
+  const limiterKey = 'redeem_' + req.userId;
+  if (!redeemAttempts[limiterKey]) redeemAttempts[limiterKey] = [];
+  redeemAttempts[limiterKey] = redeemAttempts[limiterKey].filter(t => now - t < 60000);
+  if (redeemAttempts[limiterKey].length >= 5) {
+    return res.status(429).json({ error: { message: '兑换尝试过于频繁，请 1 分钟后再试' } });
+  }
+  redeemAttempts[limiterKey].push(now);
+
+  // Auto-detect: U + 8 chars = invite code, INV- + 8 hex = old invite code, COIN- = redemption code
+  if ((trimmed.startsWith('U') && trimmed.length === 9) || (trimmed.startsWith('INV-') && trimmed.length === 12)) {
+    // Invite code (new U format or legacy INV- format)
+    const result = store.useInviteCode(trimmed, req.userId);
+    if (!result.success) return res.status(400).json({ error: { message: result.error } });
+    store.addFreeCoins(result.inviterId, 50, '邀请奖励: 好友注册');
+    store.addFreeCoins(req.userId, 30, '被邀请奖励: 使用邀请码');
+    store.addTaskCompletion(result.inviterId, 'invite_friend', 50); // inviter gets task credit
+    res.json({ success: true, type: 'invite', freeCoins: 30, message: '邀请码验证成功，获得 30 免费币' });
+  } else if (trimmed.startsWith('COIN-')) {
+    // Redemption code
+    const result = store.useRedemptionCode(trimmed, req.userId);
+    if (!result.success) return res.status(400).json({ error: { message: result.error } });
+    res.json({ success: true, type: 'redeem', coins: result.coins, message: '兑换成功，获得 ' + result.coins + ' 付费币' });
+  } else {
+    return res.status(400).json({ error: { message: '无效的码，请检查格式' } });
+  }
+});
+
+// Redeem a code (legacy endpoint, kept for backward compatibility)
 router.post('/coin/redeem', userAuth, (req, res) => {
   const { code } = req.body;
   if (!code || typeof code !== 'string') return res.status(400).json({ error: { message: '请输入兑换码' } });
