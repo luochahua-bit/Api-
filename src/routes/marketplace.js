@@ -17,6 +17,7 @@ const {
   processMarketRequest, calculatePrice, calculateModelPrice,
   freezeFunds, releaseFunds, refundFunds,
   topUpBalance, processPayment, calculateFeeWithCredits,
+  detectSourceLevel,
 } = require('../services/marketplace');
 
 const router = Router();
@@ -322,6 +323,9 @@ router.post('/listings', userAuth, async (req, res) => {
   const testResult = await testProviderKey(baseUrl, apiKey);
   if (!testResult.healthy) return res.status(400).json({ error: { message: `API Key 测试失败: ${testResult.error}` } });
 
+  // Step 1.5: Detect source level
+  const sourceLevel = detectSourceLevel(baseUrl, testResult.latency);
+
   // Step 2: Verify claimed models actually exist
   const claimedModels = models || [];
   let verification = { valid: true, verified: claimedModels, missing: [], details: {} };
@@ -353,6 +357,7 @@ router.post('/listings', userAuth, async (req, res) => {
     totalQuota: parseInt(totalQuota) || 10000,
     remainingQuota: parseInt(totalQuota) || 10000,
     sharingMode: sharingMode === 'exclusive' ? 'exclusive' : 'shared', // 'shared' | 'exclusive'
+    source: sourceLevel,
     status: 'active',
     health: { lastCheck: Date.now(), latency: testResult.latency || 0, healthy: true },
     verification: {
@@ -659,7 +664,49 @@ router.post('/orders/:id/dispute', userAuth, (req, res) => {
   if (order.buyerId !== req.userId) return res.status(403).json({ error: { message: '只能申诉自己的订单' } });
   if (order.status !== 'frozen') return res.status(400).json({ error: { message: '订单状态异常' } });
 
+  // Refund cooldown: max 1 refund per 7 days
+  const recentRefunds = store.getOrdersByBuyer(req.userId)
+    .filter(o => o.status === 'refunded' && o.createdAt > Date.now() - 7 * 24 * 60 * 60 * 1000);
+  if (recentRefunds.length >= 1) {
+    return res.status(400).json({ error: { message: '7 天内已有退款记录，请联系客服' } });
+  }
+
+  // Check usage from request logs
+  const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === req.userId && k.listingId === order.listingId);
+  let totalRequests = 0;
+  let errorRequests = 0;
+  for (const key of buyerKeys) {
+    const logs = store.getRequestLogsByBuyerKey(key.key, 100);
+    totalRequests += logs.length;
+    errorRequests += logs.filter(l => l.statusCode >= 400).length;
+  }
+
+  const usedQuota = order.amount - (buyerKeys[0]?.remainingQuota || 0);
+  const usagePercent = order.amount > 0 ? (usedQuota / order.amount) * 100 : 0;
+
   const { reason } = req.body;
+
+  // Proportional refund rules
+  if (usagePercent > 50) {
+    return res.status(400).json({
+      error: { message: `已使用 ${Math.round(usagePercent)}% 额度，超过 50% 不支持退款` },
+      usage: { totalRequests, errorRequests, usagePercent: Math.round(usagePercent) },
+    });
+  }
+
+  if (usagePercent > 20) {
+    // Partial refund: refund remaining quota only
+    const remainingRatio = (100 - usagePercent) / 100;
+    const refundAmount = Math.floor(order.totalPrice * remainingRatio);
+    store.refundCoins(order.buyerId, refundAmount, '部分退款: ' + (reason || '买家申诉') + ` (已用${Math.round(usagePercent)}%)`);
+    store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉', refundAmount });
+    return res.json({
+      success: true, refundAmount, message: `已退还 ${refundAmount} 币（已用 ${Math.round(usagePercent)}%，退还未使用部分）`,
+      order: store.getOrderById(order.id),
+    });
+  }
+
+  // Full refund (usage < 20%)
   store.refundCoins(order.buyerId, order.totalPrice, '退款: ' + (reason || '买家申诉'));
   store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉' });
   res.json({ success: true, order: store.getOrderById(order.id) });
@@ -792,6 +839,7 @@ router.post('/v1/chat/completions', async (req, res) => {
   }
 
   const isStream = req.body.stream === true;
+  const requestStart = Date.now();
   try {
     const apiKey = decryptKey(listing.apiKey);
     const resp = await axios({
@@ -800,6 +848,7 @@ router.post('/v1/chat/completions', async (req, res) => {
       data: req.body, responseType: isStream ? 'stream' : 'json', timeout: 120000,
     });
 
+    const latency = Date.now() - requestStart;
     const newQuota = buyerKey.remainingQuota - 1;
     const updates = { remainingQuota: newQuota };
     // Auto-disable when this was the last request
@@ -824,7 +873,16 @@ router.post('/v1/chat/completions', async (req, res) => {
           res.write(chunk);
         }
       });
-      resp.data.on('end', () => res.end());
+      resp.data.on('end', () => {
+        // Log request for dispute resolution
+        store.addRequestLog({
+          id: 'rl_' + Date.now(), buyerKeyId: buyerKey.key, listingId: listing.id,
+          sellerId: listing.sellerId, buyerId: buyerKey.userId,
+          model: req.body.model || '', statusCode: 200, tokenCount: 0,
+          latency, error: null, source: 'stream', timestamp: Date.now(), ip: req.ip,
+        });
+        res.end();
+      });
       resp.data.on('error', () => res.end());
       req.on('close', () => resp.data.destroy());
     } else {
@@ -837,7 +895,20 @@ router.post('/v1/chat/completions', async (req, res) => {
       }
       const usage = resp.data?.usage;
       const tokens = usage ? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0) : 0;
-      if (listing.pricePerToken > 0 && tokens > 0) {
+      const actualModel = resp.data?.model || req.body.model || '';
+
+      // Log request for dispute resolution
+      store.addRequestLog({
+        id: 'rl_' + Date.now(), buyerKeyId: buyerKey.key, listingId: listing.id,
+        sellerId: listing.sellerId, buyerId: buyerKey.userId,
+        model: actualModel, statusCode: resp.status, tokenCount: tokens,
+        latency, error: null, source: listing.baseUrl, timestamp: Date.now(), ip: req.ip,
+      });
+
+      // Error responses don't deduct quota
+      if (resp.status >= 400) {
+        store.updateMarketApiKey(buyerKey.key, { remainingQuota: buyerKey.remainingQuota });
+      } else if (listing.pricePerToken > 0 && tokens > 0) {
         const tokenCost = calculatePrice(listing, tokens);
         const buyer = store.getUserById(buyerKey.userId);
         if (buyer && buyer.balance >= tokenCost) {
@@ -847,7 +918,16 @@ router.post('/v1/chat/completions', async (req, res) => {
       res.json(sanitized.data);
     }
   } catch (err) {
-    res.status(err.response?.status || 502).json(err.response?.data || { error: { message: `Proxy error: ${err.message}` } });
+    const latency = Date.now() - requestStart;
+    const statusCode = err.response?.status || 502;
+    // Log failed request
+    store.addRequestLog({
+      id: 'rl_' + Date.now(), buyerKeyId: buyerKey.key, listingId: listing.id,
+      sellerId: listing.sellerId, buyerId: buyerKey.userId,
+      model: req.body.model || '', statusCode, tokenCount: 0,
+      latency, error: err.message, source: listing.baseUrl, timestamp: Date.now(), ip: req.ip,
+    });
+    res.status(statusCode).json(err.response?.data || { error: { message: `Proxy error: ${err.message}` } });
   }
 });
 

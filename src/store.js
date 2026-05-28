@@ -34,6 +34,8 @@ class Store {
       // USDT deposits
       depositOrders: [],   // { id, userId, usdtAmount, coins, address, status, txHash, createdAt, expiresAt, confirmedAt }
       processedTxHashes: [], // string[] — tx hashes already credited
+      // Request logs for dispute resolution
+      requestLogs: [],     // { id, buyerKeyId, listingId, sellerId, buyerId, model, statusCode, tokenCount, latency, error, source, timestamp, ip }
     };
     this.saveTimer = null;
     this.backupTimer = null;
@@ -56,6 +58,7 @@ class Store {
         this.state.inviteCodes = this.state.inviteCodes || [];
         this.state.depositOrders = this.state.depositOrders || [];
         this.state.processedTxHashes = this.state.processedTxHashes || [];
+        this.state.requestLogs = this.state.requestLogs || [];
         console.log('[Store] Loaded data from', config.dbPath);
       } else {
         this.seedFromEnv();
@@ -874,6 +877,35 @@ class Store {
 
   isDepositTxProcessed(txHash) {
     return this.state.processedTxHashes.includes(txHash);
+  }
+
+  // ========== Request Logs (for dispute resolution) ==========
+
+  addRequestLog(log) {
+    this.state.requestLogs.push(log);
+    // Keep last 5000 logs
+    if (this.state.requestLogs.length > 5000) {
+      this.state.requestLogs = this.state.requestLogs.slice(-5000);
+    }
+    this.save();
+  }
+
+  getRequestLogsByBuyerKey(buyerKeyId, limit = 20) {
+    return this.state.requestLogs
+      .filter(l => l.buyerKeyId === buyerKeyId)
+      .slice(-limit);
+  }
+
+  getRequestLogsByListing(listingId, limit = 50) {
+    return this.state.requestLogs
+      .filter(l => l.listingId === listingId)
+      .slice(-limit);
+  }
+
+  getRequestLogsBySeller(sellerId, limit = 50) {
+    return this.state.requestLogs
+      .filter(l => l.sellerId === sellerId)
+      .slice(-limit);
   }
 }
 

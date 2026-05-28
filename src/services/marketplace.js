@@ -283,6 +283,47 @@ function topUpBalance(userId, amount, adminNote) {
   return { success: true, newBalance: user.balance + amount };
 }
 
+// ========== Source Level Detection ==========
+
+const KNOWN_DIRECT_HOSTS = [
+  'api.openai.com', 'api.anthropic.com', 'api.deepseek.com',
+  'api.groq.com', 'api.cerebras.ai', 'api.sambanova.ai',
+  'generativelanguage.googleapis.com', 'api.mistral.ai',
+  'integrate.api.nvidia.com', 'api.cohere.com',
+];
+
+const KNOWN_RELAY_HOSTS = [
+  'openrouter.ai', 'models.inference.ai.azure.com',
+];
+
+function detectSourceLevel(baseUrl, latency, responseHeaders) {
+  if (!baseUrl) return { level: 'C', label: '未声明' };
+
+  const host = new URL(baseUrl).hostname.toLowerCase();
+
+  // Check if response has proxy headers
+  const proxyHeaders = ['x-proxy', 'x-relay', 'x-forwarded-by', 'x-powered-by'];
+  const hasProxyHeaders = responseHeaders && proxyHeaders.some(h => responseHeaders[h]);
+
+  if (KNOWN_DIRECT_HOSTS.some(h => host.includes(h))) {
+    return { level: 'S', label: '官方直连' };
+  }
+
+  if (KNOWN_RELAY_HOSTS.some(h => host.includes(h))) {
+    return { level: 'A', label: '知名中转' };
+  }
+
+  if (hasProxyHeaders) {
+    return { level: 'B', label: '第三方中转', warning: '检测到代理特征' };
+  }
+
+  if (latency > 2000) {
+    return { level: 'B', label: '疑似中转', warning: '延迟较高' };
+  }
+
+  return { level: 'B', label: '其他来源' };
+}
+
 // Direct payment (for per-token billing after request completes) — uses coin system
 function processPayment(buyerId, sellerId, listingId, amount) {
   if (amount <= 0) return { success: false, error: '金额无效' };
