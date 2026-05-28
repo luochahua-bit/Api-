@@ -1044,30 +1044,9 @@ router.get('/coin/purchases', userAuth, (req, res) => {
 });
 
 // Request withdrawal
+// Legacy endpoint disabled — use /withdraw-usdt instead
 router.post('/coin/withdraw', userAuth, (req, res) => {
-  const { coins } = req.body;
-  if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
-  if (coins > (req.user.coins || 0)) return res.status(400).json({ error: { message: '金币余额不足' } });
-
-  // Check for pending withdrawals
-  const pending = store.getWithdrawalsByUser(req.userId).filter(w => w.status === 'pending');
-  if (pending.length > 0) return res.status(400).json({ error: { message: '有正在审核的提现申请，请等待处理' } });
-
-  // Deduct coins immediately (held in withdrawal)
-  store.deductCoins(req.userId, coins, '申请提现 ' + coins + ' 金币');
-
-  const withdrawal = {
-    id: 'wd_' + Date.now(),
-    userId: req.userId,
-    username: req.user.username,
-    coins,
-    status: 'pending',
-    createdAt: Date.now(),
-    processedAt: null,
-    note: '',
-  };
-  store.addWithdrawal(withdrawal);
-  res.json({ success: true, message: '提现申请已提交，等待审核', withdrawal });
+  return res.status(400).json({ error: { message: '请使用 USDT 提现（钱包页 → 提现）' } });
 });
 
 // Get my withdrawals
