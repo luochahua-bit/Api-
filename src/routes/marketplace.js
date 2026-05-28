@@ -1026,6 +1026,10 @@ router.post('/coin/purchase', userAuth, (req, res) => {
 
 // Process simulated payment
 router.post('/coin/pay', userAuth, (req, res) => {
+  // Simulated payment disabled in production — use USDT deposit instead
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(400).json({ error: { message: '模拟支付已关闭，请使用 USDT 充值' } });
+  }
   const { orderId } = req.body;
   if (!orderId) return res.status(400).json({ error: { message: '缺少订单 ID' } });
   const order = store.getPaymentOrder(orderId);
