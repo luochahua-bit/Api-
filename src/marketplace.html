@@ -1107,8 +1107,17 @@ async function doWithdraw(){
   if(!coins||coins<1){toast('请输入提现金币数','error');return;}
   if(!addr){toast('请填写 USDT-TRC20 收款地址','error');return;}
   if(!addr.startsWith('T')||addr.length!==34){toast('地址格式不正确，TRON 地址以 T 开头，34 个字符','error');return;}
-  var usdtAmt=(coins/10).toFixed(2);
-  if(!confirm('确定申请提现 '+coins+' 币（约 '+usdtAmt+' USDT）？\n\n收款地址：'+addr))return;
+  // Calculate fee preview
+  var rate=coins<=20?0:coins<=100?0.05:coins<=500?0.03:0.02;
+  var fee=Math.ceil(coins*rate);
+  var payout=coins-fee;
+  var usdtPayout=(payout/10).toFixed(2);
+  var msg='提现明细：\n'+
+    '扣除：'+coins+' 币\n'+
+    '手续费：'+fee+' 币'+(coins<=20?'（免费）':'（'+(rate*100)+'%）')+'\n'+
+    '到手：'+payout+' 币 = '+usdtPayout+' USDT\n\n'+
+    '收款地址：'+addr;
+  if(!confirm(msg))return;
   try{
     var r=await api('/coin/withdraw',{method:'POST',body:JSON.stringify({coins:coins,walletAddress:addr})});
     toast(r.message,'success');

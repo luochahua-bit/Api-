@@ -1057,14 +1057,21 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
   const pending = store.getWithdrawalsByUser(req.userId).filter(w => w.status === 'pending');
   if (pending.length >= 3) return res.status(400).json({ error: { message: '最多 3 笔待审核提现，请等待处理' } });
 
-  store.deductCoins(req.userId, coins, '申请提现 ' + coins + ' 金币');
+  // Calculate withdrawal fee
+  const feeInfo = calculateWithdrawalFee(coins, req.user.feeCredits || 0);
+  const actualDeduct = coins; // deduct full amount from user
+  const usdtPayout = feeInfo.payout / 10; // convert to USDT
+
+  store.deductCoins(req.userId, actualDeduct, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${feeInfo.payout}币=${usdtPayout}USDT)`);
 
   const withdrawal = {
     id: 'wd_' + Date.now(),
     userId: req.userId,
     username: req.user.username,
     coins,
-    usdtAmount: coins / 10,
+    fee: feeInfo.fee,
+    payout: feeInfo.payout,
+    usdtAmount: usdtPayout,
     walletAddress,
     status: 'pending',
     createdAt: Date.now(),
@@ -1072,7 +1079,12 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
     note: '',
   };
   store.addWithdrawal(withdrawal);
-  res.json({ success: true, message: '提现申请已提交，等待审核', withdrawal });
+  res.json({
+    success: true,
+    message: `提现申请已提交。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${feeInfo.payout} 币 = ${usdtPayout} USDT`,
+    fee: feeInfo,
+    withdrawal,
+  });
 });
 
 // Get my withdrawals
@@ -1114,6 +1126,27 @@ router.get('/deposits', userAuth, (req, res) => {
   const orders = store.getUserDepositOrders(req.userId);
   res.json({ data: orders.slice(-50).reverse() });
 });
+
+// Withdrawal fee tiers
+function calculateWithdrawalFee(coins, feeCredits) {
+  let rate;
+  if (coins <= 20) rate = 0;        // ≤20 coins: free
+  else if (coins <= 100) rate = 0.05; // 21-100: 5%
+  else if (coins <= 500) rate = 0.03; // 101-500: 3%
+  else rate = 0.02;                   // >500: 2%
+
+  let fee = Math.ceil(coins * rate);
+  // Fee credits can reduce up to 50% of fee
+  const maxDiscount = Math.floor(fee * 0.5);
+  const discount = Math.min(feeCredits || 0, maxDiscount);
+  fee = fee - discount;
+
+  // Iron rule: fee >= 0, payout > 0
+  if (fee < 0) fee = 0;
+  if (coins - fee <= 0 && coins > 0) fee = coins - 1; // leave at least 1 coin
+
+  return { fee, rate, discount, payout: coins - fee };
+}
 
 // Validate TRON address format
 function validateTronAddress(address) {
@@ -1202,7 +1235,6 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
   if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
   if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDT-TRC20 收款地址' } });
 
-  // Validate address (warning only, not blocking)
   const addrCheck = validateTronAddress(walletAddress);
   if (!addrCheck.valid) {
     return res.status(400).json({ error: { message: addrCheck.message } });
@@ -1211,13 +1243,11 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
   const user = store.getUserById(req.userId);
   if ((user.coins || 0) < coins) return res.status(400).json({ error: { message: '付费币余额不足' } });
 
-  const usdtAmount = coins / COINS_PER_USDT;
-  if (usdtAmount > 50) return res.status(400).json({ error: { message: '单次最多提现 50 USDT' } });
+  const feeInfo = calculateWithdrawalFee(coins, user.feeCredits || 0);
+  const usdtPayout = feeInfo.payout / COINS_PER_USDT;
+  if (usdtPayout > 50) return res.status(400).json({ error: { message: '单次最多提现 50 USDT' } });
 
-  // Deduct coins
-  store.deductCoins(req.userId, coins, `申请提现 ${coins} 币 (${usdtAmount} USDT)`);
-
-  // Save wallet address to user profile
+  store.deductCoins(req.userId, coins, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${usdtPayout}USDT)`);
   store.updateUser(req.userId, { usdtAddress: walletAddress });
 
   const withdrawal = {
@@ -1225,7 +1255,9 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
     userId: req.userId,
     username: user.username,
     coins,
-    usdtAmount,
+    fee: feeInfo.fee,
+    payout: feeInfo.payout,
+    usdtAmount: usdtPayout,
     walletAddress,
     status: 'pending',
     createdAt: Date.now(),
@@ -1237,7 +1269,8 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
 
   res.json({
     success: true,
-    message: `提现申请已提交。将退还 ${usdtAmount} USDT 到 ${walletAddress}`,
+    message: `提现申请已提交。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${usdtPayout} USDT`,
+    fee: feeInfo,
     addressCheck: addrCheck,
     withdrawal,
   });
