@@ -1044,9 +1044,31 @@ router.get('/coin/purchases', userAuth, (req, res) => {
 });
 
 // Request withdrawal
-// Legacy endpoint disabled — use /withdraw-usdt instead
 router.post('/coin/withdraw', userAuth, (req, res) => {
-  return res.status(400).json({ error: { message: '请使用 USDT 提现（钱包页 → 提现）' } });
+  const { coins, walletAddress } = req.body;
+  if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
+  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDT-TRC20 收款地址' } });
+  if (coins > (req.user.coins || 0)) return res.status(400).json({ error: { message: '金币余额不足' } });
+
+  const pending = store.getWithdrawalsByUser(req.userId).filter(w => w.status === 'pending');
+  if (pending.length >= 3) return res.status(400).json({ error: { message: '最多 3 笔待审核提现，请等待处理' } });
+
+  store.deductCoins(req.userId, coins, '申请提现 ' + coins + ' 金币');
+
+  const withdrawal = {
+    id: 'wd_' + Date.now(),
+    userId: req.userId,
+    username: req.user.username,
+    coins,
+    usdtAmount: coins / 10,
+    walletAddress,
+    status: 'pending',
+    createdAt: Date.now(),
+    processedAt: null,
+    note: '',
+  };
+  store.addWithdrawal(withdrawal);
+  res.json({ success: true, message: '提现申请已提交，等待审核', withdrawal });
 });
 
 // Get my withdrawals
