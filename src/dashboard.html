@@ -915,15 +915,23 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       document.getElementById('addProviderModal').classList.add('show');
     }
 
-    function adminLogin() {
+    async function adminLogin() {
       const pwd = document.getElementById('adminPassword').value;
       if (!pwd) return;
-      adminToken = pwd;
-      localStorage.setItem('relay_admin_token', pwd);
-      document.getElementById('adminLogin').style.display = 'none';
-      document.getElementById('adminContent').style.display = '';
-      loadAdminData();
-      showToast('已登录为管理员');
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd }),
+        });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error.message, 'error'); return; }
+        adminToken = data.token;
+        localStorage.setItem('relay_admin_token', data.token);
+        document.getElementById('adminLogin').style.display = 'none';
+        document.getElementById('adminContent').style.display = '';
+        loadAdminData();
+        showToast('已登录为管理员');
+      } catch (e) { showToast('登录失败: ' + e.message, 'error'); }
     }
 
     function adminLogout() {
