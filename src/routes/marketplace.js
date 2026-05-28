@@ -1110,11 +1110,98 @@ router.get('/deposits', userAuth, (req, res) => {
   res.json({ data: orders.slice(-50).reverse() });
 });
 
+// Validate TRON address format
+function validateTronAddress(address) {
+  if (!address || typeof address !== 'string') {
+    return { valid: false, message: '地址不能为空' };
+  }
+  const trimmed = address.trim();
+
+  // Check: must start with T
+  if (!trimmed.startsWith('T')) {
+    return { valid: false, message: 'TRON 地址必须以 T 开头，您可能选错了网络' };
+  }
+
+  // Check: must be 34 characters
+  if (trimmed.length !== 34) {
+    return { valid: false, message: `TRON 地址应为 34 个字符，您输入了 ${trimmed.length} 个` };
+  }
+
+  // Check: only Base58 characters (no 0, O, I, l)
+  if (!/^[1-9A-HJ-NP-Za-km-z]+$/.test(trimmed)) {
+    return { valid: false, message: '地址包含无效字符，请检查是否复制完整' };
+  }
+
+  return { valid: true, message: '地址格式正确' };
+}
+
+// Address validation endpoint (format + on-chain check)
+router.post('/validate-address', userAuth, async (req, res) => {
+  const { address } = req.body;
+
+  // Layer 1: Format check
+  const formatCheck = validateTronAddress(address);
+  if (!formatCheck.valid) {
+    return res.json({ ...formatCheck, onChain: null });
+  }
+
+  // Layer 2: On-chain check
+  try {
+    const axios = require('axios');
+    const resp = await axios.get(`https://api.trongrid.io/v1/accounts/${address.trim()}`, { timeout: 10000 });
+    const account = resp.data?.data?.[0];
+
+    if (!account) {
+      return res.json({
+        valid: true,
+        message: '地址格式正确，但链上无记录（可能是新地址）',
+        warning: '新地址首次收款需要少量 TRX 作为手续费',
+        onChain: { exists: false, balance: 0, txCount: 0 },
+      });
+    }
+
+    const trxBalance = account.balance || 0;
+    const txCount = account.total_transaction_count || 0;
+    const trc20Tokens = Object.keys(account.assetV2 || {}).length;
+
+    let warning = null;
+    if (trxBalance < 1000000) { // < 1 TRX (in sun)
+      warning = '该地址 TRX 余额较低，首次收款可能需要少量 TRX 作为手续费';
+    }
+
+    return res.json({
+      valid: true,
+      message: '地址验证通过',
+      warning,
+      onChain: {
+        exists: true,
+        trxBalance: (trxBalance / 1e6).toFixed(2),
+        txCount,
+        trc20Tokens,
+      },
+    });
+  } catch (err) {
+    // API error - still pass format check
+    return res.json({
+      valid: true,
+      message: '地址格式正确（链上验证暂时不可用）',
+      warning: '无法连接区块链网络，请自行确认地址正确',
+      onChain: null,
+    });
+  }
+});
+
 // USDT withdrawal (admin processes manually)
 router.post('/withdraw-usdt', userAuth, (req, res) => {
   const { coins, walletAddress } = req.body;
   if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
   if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDT-TRC20 收款地址' } });
+
+  // Validate address (warning only, not blocking)
+  const addrCheck = validateTronAddress(walletAddress);
+  if (!addrCheck.valid) {
+    return res.status(400).json({ error: { message: addrCheck.message } });
+  }
 
   const user = store.getUserById(req.userId);
   if ((user.coins || 0) < coins) return res.status(400).json({ error: { message: '付费币余额不足' } });
@@ -1143,7 +1230,12 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
   };
   store.addWithdrawal(withdrawal);
 
-  res.json({ success: true, message: `提现申请已提交，等待审核。将退还 ${usdtAmount} USDT 到 ${walletAddress}`, withdrawal });
+  res.json({
+    success: true,
+    message: `提现申请已提交。将退还 ${usdtAmount} USDT 到 ${walletAddress}`,
+    addressCheck: addrCheck,
+    withdrawal,
+  });
 });
 
 // ==================== Admin: Coin Management ====================
