@@ -31,6 +31,9 @@ class Store {
       // Task system
       taskCompletions: [], // { id, userId, taskId, reward, date, createdAt }
       inviteCodes: [],     // { userId, code, usedBy: [], createdAt }
+      // USDT deposits
+      depositOrders: [],   // { id, userId, usdtAmount, coins, address, status, txHash, createdAt, expiresAt, confirmedAt }
+      processedTxHashes: [], // string[] — tx hashes already credited
     };
     this.saveTimer = null;
     this.backupTimer = null;
@@ -51,6 +54,8 @@ class Store {
         this.state.paymentOrders = this.state.paymentOrders || [];
         this.state.taskCompletions = this.state.taskCompletions || [];
         this.state.inviteCodes = this.state.inviteCodes || [];
+        this.state.depositOrders = this.state.depositOrders || [];
+        this.state.processedTxHashes = this.state.processedTxHashes || [];
         console.log('[Store] Loaded data from', config.dbPath);
       } else {
         this.seedFromEnv();
@@ -829,6 +834,46 @@ class Store {
     invite.usedBy.push(newUserId);
     this.save();
     return { success: true, inviterId: invite.userId };
+  }
+
+  // ========== USDT Deposit Orders ==========
+
+  addDepositOrder(order) {
+    this.state.depositOrders.push(order);
+    this.save();
+  }
+
+  getDepositOrder(id) {
+    return this.state.depositOrders.find(o => o.id === id);
+  }
+
+  getPendingDepositOrders() {
+    return this.state.depositOrders.filter(o => o.status === 'pending');
+  }
+
+  getUserDepositOrders(userId) {
+    return this.state.depositOrders.filter(o => o.userId === userId);
+  }
+
+  updateDepositOrder(id, changes) {
+    const idx = this.state.depositOrders.findIndex(o => o.id === id);
+    if (idx === -1) return false;
+    this.state.depositOrders[idx] = { ...this.state.depositOrders[idx], ...changes };
+    this.save();
+    return true;
+  }
+
+  addProcessedTx(txHash) {
+    this.state.processedTxHashes.push(txHash);
+    // Keep last 10000 hashes
+    if (this.state.processedTxHashes.length > 10000) {
+      this.state.processedTxHashes = this.state.processedTxHashes.slice(-10000);
+    }
+    this.save();
+  }
+
+  isDepositTxProcessed(txHash) {
+    return this.state.processedTxHashes.includes(txHash);
   }
 }
 

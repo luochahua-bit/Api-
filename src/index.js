@@ -186,6 +186,10 @@ if (!process.env.VERCEL) {
     console.log('');
 
     healthCheck.start();
+
+    // Start USDT deposit monitor
+    const usdtPayment = require('./services/usdtPayment');
+    usdtPayment.startMonitor();
   });
 }
 

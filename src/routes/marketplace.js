@@ -996,6 +996,76 @@ router.get('/coin/withdrawals', userAuth, (req, res) => {
   res.json({ data: withdrawals });
 });
 
+// ==================== USDT Deposit ====================
+
+const { createDepositOrder, checkDepositOrder, COINS_PER_USDT, MIN_DEPOSIT, WALLET_ADDRESS } = require('../services/usdtPayment');
+
+// Create deposit order
+router.post('/deposit', userAuth, (req, res) => {
+  const { amount } = req.body;
+  if (!amount || amount < MIN_DEPOSIT) {
+    return res.status(400).json({ error: { message: `最低充值 ${MIN_DEPOSIT} USDT` } });
+  }
+  const result = createDepositOrder(req.userId, parseFloat(amount));
+  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  res.json({
+    success: true,
+    order: result.order,
+    address: WALLET_ADDRESS,
+    message: `请转 ${result.order.usdtAmount} USDT 到指定地址`,
+  });
+});
+
+// Check deposit order status
+router.get('/deposit/:orderId', userAuth, (req, res) => {
+  const result = checkDepositOrder(req.params.orderId);
+  if (!result.success) return res.status(400).json({ error: { message: result.error } });
+  if (result.order.userId !== req.userId) return res.status(403).json({ error: { message: '无权查看' } });
+  res.json(result.order);
+});
+
+// Get user's deposit history
+router.get('/deposits', userAuth, (req, res) => {
+  const orders = store.getUserDepositOrders(req.userId);
+  res.json({ data: orders.slice(-50).reverse() });
+});
+
+// USDT withdrawal (admin processes manually)
+router.post('/withdraw-usdt', userAuth, (req, res) => {
+  const { coins, walletAddress } = req.body;
+  if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
+  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDT-TRC20 收款地址' } });
+
+  const user = store.getUserById(req.userId);
+  if ((user.coins || 0) < coins) return res.status(400).json({ error: { message: '付费币余额不足' } });
+
+  const usdtAmount = coins / COINS_PER_USDT;
+  if (usdtAmount > 50) return res.status(400).json({ error: { message: '单次最多提现 50 USDT' } });
+
+  // Deduct coins
+  store.deductCoins(req.userId, coins, `申请提现 ${coins} 币 (${usdtAmount} USDT)`);
+
+  // Save wallet address to user profile
+  store.updateUser(req.userId, { usdtAddress: walletAddress });
+
+  const withdrawal = {
+    id: 'wd_' + Date.now(),
+    userId: req.userId,
+    username: user.username,
+    coins,
+    usdtAmount,
+    walletAddress,
+    status: 'pending',
+    createdAt: Date.now(),
+    processedAt: null,
+    txHash: null,
+    note: '',
+  };
+  store.addWithdrawal(withdrawal);
+
+  res.json({ success: true, message: `提现申请已提交，等待审核。将退还 ${usdtAmount} USDT 到 ${walletAddress}`, withdrawal });
+});
+
 // ==================== Admin: Coin Management ====================
 
 // Generate redemption codes
