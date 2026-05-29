@@ -334,7 +334,7 @@ textarea{min-height:60px;resize:vertical}
         <input type="number" id="rechargeAmount" placeholder="自定义金额" min="1" max="100000" style="flex:1">
         <button class="btn btn-primary" onclick="doRecharge()">立即充值</button>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px">1 金币 = 1 元人民币 · 充值后立即到账</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">10 金币 = 1 USDT · 充值后自动到账</div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
@@ -1104,16 +1104,18 @@ async function doRecharge(){
   var amount=parseInt(document.getElementById('rechargeAmount').value);
   if(!amount||amount<1){toast('请选择或输入充值金额','error');return;}
   if(!token){showAuthModal();return;}
+  var usdtAmount=(amount/10).toFixed(2);
   try{
-    // Create order
-    var r=await api('/coin/purchase',{method:'POST',body:JSON.stringify({amount:amount})});
-    var orderId=r.order.id;
-    // Simulated payment (instant)
-    var pay=await api('/coin/pay',{method:'POST',body:JSON.stringify({orderId:orderId})});
-    toast(pay.message,'success');
+    // Create USDT deposit order
+    var usdt=await api('/deposit',{method:'POST',body:JSON.stringify({amount:parseFloat(usdtAmount)})});
+    var msg='充值 '+amount+' 金币（'+usdtAmount+' USDT）\n\n'+
+      '请将 '+usdt.order.usdtAmount+' USDT 转到以下 TRC20 地址：\n\n'+
+      usdt.address+'\n\n'+
+      '转账后系统自动到账（约 1-5 分钟）\n'+
+      '订单号：'+usdt.order.id;
+    alert(msg);
     document.getElementById('rechargeAmount').value='';
     document.querySelectorAll('.recharge-btn').forEach(function(b){b.style.background='';b.style.borderColor='';});
-    loadWallet();
   }catch(e){toast(e.message,'error');}
 }
 
