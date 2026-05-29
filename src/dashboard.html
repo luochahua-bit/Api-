@@ -985,7 +985,9 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                 <div>
                   <strong>${_esc(w.username)}</strong>
-                  <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${w.coins} 币 = ${w.usdtAmount} USDT</span>
+                  <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${w.coins} 币</span>
+                  <span style="font-size:14px;font-weight:700;color:var(--primary);margin-left:8px">→ ${w.usdtAmount} USDC</span>
+                  ${w.fee ? '<span style="font-size:11px;color:var(--text3);margin-left:4px">(手续费 ' + w.fee + ' 币)</span>' : ''}
                 </div>
                 <span class="badge" style="background:${statusColors[w.status]}22;color:${statusColors[w.status]}">${statusLabels[w.status]}</span>
               </div>
@@ -997,8 +999,9 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
                 ${w.note ? ' | 备注: ' + _esc(w.note) : ''}
               </div>
               ${w.status === 'pending' ? `
-              <div style="margin-top:10px;display:flex;gap:8px">
-                <button class="btn btn-sm btn-primary" onclick="processWithdrawal('${w.id}','approved')">批准</button>
+              <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+                <span style="font-size:12px;color:var(--warning);font-weight:600">需转 ${w.usdtAmount} USDC 到上方地址</span>
+                <button class="btn btn-sm btn-primary" onclick="processWithdrawal('${w.id}','approved')">已转账，批准</button>
                 <button class="btn btn-sm btn-danger" onclick="processWithdrawal('${w.id}','rejected')">拒绝</button>
               </div>` : ''}
             </div>
@@ -1009,7 +1012,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     async function processWithdrawal(id, status) {
       if (!confirm(status === 'approved' ? '确认批准此提现？请先在钱包完成转账。' : '确认拒绝此提现？金币将退回用户。')) return;
       try {
-        const resp = await fetch(API_BASE + '/api/market/admin/withdrawals/' + id, {
+        const resp = await fetch(API_BASE + '/api/admin/withdrawals/' + id + '/' + status, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
           body: JSON.stringify({ status, note: status === 'approved' ? '管理员已转账' : '管理员拒绝' }),

@@ -1099,6 +1099,13 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
   const { coins, walletAddress } = req.body;
   if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
   if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDC-Arbitrum 收款地址' } });
+
+  // Validate wallet address format
+  const addrCheck = validateTronAddress(walletAddress);
+  if (!addrCheck.valid) {
+    return res.status(400).json({ error: { message: addrCheck.message } });
+  }
+
   if (coins > (req.user.coins || 0)) return res.status(400).json({ error: { message: '金币余额不足' } });
 
   const pending = store.getWithdrawalsByUser(req.userId).filter(w => w.status === 'pending');
@@ -1336,53 +1343,6 @@ router.post('/validate-address', userAuth, async (req, res) => {
       onChain: null,
     });
   }
-});
-
-// USDC withdrawal (admin processes manually)
-router.post('/withdraw-usdt', userAuth, (req, res) => {
-  const { coins, walletAddress } = req.body;
-  if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
-  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDC-Arbitrum 收款地址' } });
-
-  const addrCheck = validateTronAddress(walletAddress);
-  if (!addrCheck.valid) {
-    return res.status(400).json({ error: { message: addrCheck.message } });
-  }
-
-  const user = store.getUserById(req.userId);
-  if ((user.coins || 0) < coins) return res.status(400).json({ error: { message: '付费币余额不足' } });
-
-  const feeInfo = calculateWithdrawalFee(coins, user.feeCredits || 0);
-  const usdtPayout = feeInfo.payout / COINS_PER_USDC;
-  if (usdtPayout > 50) return res.status(400).json({ error: { message: '单次最多提现 50 USDC' } });
-
-  store.deductCoins(req.userId, coins, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${usdtPayout}USDC)`);
-  store.updateUser(req.userId, { usdtAddress: walletAddress });
-
-  const withdrawal = {
-    id: 'wd_' + crypto.randomUUID(),
-    userId: req.userId,
-    username: user.username,
-    coins,
-    fee: feeInfo.fee,
-    payout: feeInfo.payout,
-    usdtAmount: usdtPayout,
-    walletAddress,
-    status: 'pending',
-    createdAt: Date.now(),
-    processedAt: null,
-    txHash: null,
-    note: '',
-  };
-  store.addWithdrawal(withdrawal);
-
-  res.json({
-    success: true,
-    message: `提现申请已提交。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${usdtPayout} USDC`,
-    fee: feeInfo,
-    addressCheck: addrCheck,
-    withdrawal,
-  });
 });
 
 // ==================== Admin: Coin Management ====================
