@@ -553,6 +553,19 @@ async function submitTxHash(){
         btn.disabled=false;btn.textContent='提交';
         return;
       }
+      if(r.success&&r.message.includes('已处理')){
+        statusEl.textContent='✅ '+r.message;
+        statusEl.style.color='var(--success)';
+        btn.disabled=false;btn.textContent='提交';
+        return;
+      }
+      // If verification failed (not just "waiting"), stop polling
+      if(!r.success){
+        statusEl.textContent='❌ '+(r.message||'验证失败');
+        statusEl.style.color='var(--error)';
+        btn.disabled=false;btn.textContent='提交';
+        return;
+      }
       statusEl.textContent='等待区块确认... ('+((i+1)*5)+'秒)';
       statusEl.style.color='var(--warning)';
     }catch(e){
