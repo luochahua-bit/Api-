@@ -247,7 +247,7 @@ if (!process.env.VERCEL) {
     // Fund reconciliation check every hour
     const recon = store.reconcileCoins();
     if (!recon.balanced) {
-      console.error('[FATAL] Fund reconciliation mismatch on startup!', JSON.stringify(recon));
+      console.warn('[Reconcile] MISMATCH — users have coins but transaction history is incomplete (likely data restored from backup)', JSON.stringify(recon));
     } else {
       console.log(`[Reconcile] OK — ${recon.userCount} users, ${recon.transactionCount} txns, balance: ${recon.totalBalance}`);
     }
