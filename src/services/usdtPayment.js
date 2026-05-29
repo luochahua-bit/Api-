@@ -226,9 +226,62 @@ function stopMonitor() {
   }
 }
 
+// ========== Transaction Verification ==========
+
+async function verifyTransaction(txHash, expectedAmount) {
+  try {
+    // Query TronGrid for transaction details
+    const resp = await axios.get(
+      `${TRONGRID_API}/v1/transactions/${txHash}/trc20`,
+      { timeout: 15000, validateStatus: () => true }
+    );
+
+    if (!resp.data || resp.status !== 200) {
+      return { verified: false, error: '交易查询失败' };
+    }
+
+    const tx = resp.data;
+    if (!tx.to || !tx.value) {
+      return { verified: false, error: '无效的交易数据' };
+    }
+
+    // Check if it's sent to our wallet
+    if (tx.to.toLowerCase() !== WALLET_ADDRESS.toLowerCase()) {
+      return { verified: false, error: '此交易不是发送到我们的钱包地址' };
+    }
+
+    // Check if it's USDT
+    if (tx.token_info?.address !== USDT_CONTRACT) {
+      return { verified: false, error: '此交易不是 USDT 转账' };
+    }
+
+    const amount = parseFloat(tx.value) / 1e6;
+    const diff = Math.abs(amount - expectedAmount);
+
+    if (diff > 0.01) {
+      return { verified: false, error: `金额不匹配：期望 ${expectedAmount} USDT，实际 ${amount} USDT` };
+    }
+
+    // Check confirmations
+    if (tx.block_number) {
+      const latestBlock = await getLatestBlockNumber();
+      if (latestBlock > 0) {
+        const confirmations = latestBlock - tx.block_number;
+        if (confirmations < REQUIRED_CONFIRMATIONS) {
+          return { verified: false, error: `确认数不足：${confirmations}/${REQUIRED_CONFIRMATIONS}，请稍等` };
+        }
+      }
+    }
+
+    return { verified: true, amount };
+  } catch (err) {
+    return { verified: false, error: '验证出错: ' + err.message };
+  }
+}
+
 module.exports = {
   createDepositOrder, checkDepositOrder,
-  processWithdrawal,
+  processWithdrawal, verifyTransaction,
   startMonitor, stopMonitor,
   COINS_PER_USDT, MIN_DEPOSIT, MAX_WITHDRAW, WALLET_ADDRESS,
 };

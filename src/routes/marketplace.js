@@ -1157,6 +1157,38 @@ router.get('/deposit/:orderId', userAuth, (req, res) => {
   res.json(result.order);
 });
 
+// Submit txHash for faster verification
+router.post('/deposit/verify', userAuth, async (req, res) => {
+  const { orderId, txHash } = req.body;
+  if (!orderId || !txHash) return res.status(400).json({ error: { message: '订单号和交易哈希必填' } });
+
+  const order = store.getDepositOrder(orderId);
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.userId !== req.userId) return res.status(403).json({ error: { message: '无权操作' } });
+  if (order.status === 'completed') return res.json({ success: true, message: '订单已完成' });
+
+  // Check if txHash already processed
+  if (store.isDepositTxProcessed(txHash)) {
+    return res.json({ success: true, message: '此交易已被处理' });
+  }
+
+  // Verify transaction on blockchain
+  const usdtPayment = require('../services/usdtPayment');
+  try {
+    const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount);
+    if (result.verified) {
+      store.updateDepositOrder(orderId, { status: 'completed', txHash, confirmedAt: Date.now() });
+      store.addCoins(order.userId, order.coins, `USDT 充值 ${result.amount} USDT → ${order.coins} 币`);
+      store.addProcessedTx(txHash);
+      res.json({ success: true, message: `充值成功！${order.coins} 金币已到账` });
+    } else {
+      res.json({ success: false, message: result.error || '交易验证失败，请确认交易哈希正确' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: { message: '验证失败: ' + e.message } });
+  }
+});
+
 // Get user's deposit history
 router.get('/deposits', userAuth, (req, res) => {
   const orders = store.getUserDepositOrders(req.userId);

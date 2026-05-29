@@ -443,7 +443,15 @@ textarea{min-height:60px;resize:vertical}
       <div id="payAddress" style="font-size:13px;font-weight:600;word-break:break-all;user-select:all;cursor:text;color:var(--text)">-</div>
     </div>
     <button class="btn btn-primary" onclick="copyPayAddress()" style="width:100%;margin-bottom:8px">📋 复制地址</button>
-    <div style="font-size:11px;color:var(--text3)">转账后系统自动到账（约 1-5 分钟）</div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">已转账？提交交易哈希加速到账：</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="payTxHash" placeholder="粘贴交易哈希（TxID）" style="flex:1;font-size:12px">
+        <button class="btn btn-primary btn-sm" onclick="submitTxHash()">提交</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">不提交也可，系统每 30 秒自动检测</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px" id="payStatus"></div>
     <div style="font-size:11px;color:var(--text3);margin-top:4px" id="payOrderId">订单号: -</div>
   </div>
 </div>
@@ -508,6 +516,24 @@ function copyPayAddress(){
     // Fallback for older browsers
     var ta=document.createElement('textarea');ta.value=addr;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('地址已复制');
   });
+}
+var _currentDepositOrderId='';
+async function submitTxHash(){
+  var txHash=document.getElementById('payTxHash').value.trim();
+  if(!txHash){toast('请粘贴交易哈希','error');return;}
+  if(!_currentDepositOrderId){toast('订单号丢失，请重新充值','error');return;}
+  try{
+    var r=await api('/deposit/verify',{method:'POST',body:JSON.stringify({orderId:_currentDepositOrderId,txHash:txHash})});
+    document.getElementById('payStatus').textContent=r.message||'验证完成';
+    document.getElementById('payStatus').style.color=r.success?'var(--success)':'var(--warning)';
+    if(r.success){
+      toast(r.message,'success');
+      loadWallet();
+    }
+  }catch(e){
+    document.getElementById('payStatus').textContent=e.message;
+    document.getElementById('payStatus').style.color='var(--error)';
+  }
 }
 
 function onProviderSelect(url){
@@ -1132,6 +1158,7 @@ async function doRecharge(){
   var usdtAmount=(amount/10).toFixed(2);
   try{
     var usdt=await api('/deposit',{method:'POST',body:JSON.stringify({amount:parseFloat(usdtAmount)})});
+    _currentDepositOrderId=usdt.order.id;
     // Show payment modal
     document.getElementById('payCoins').textContent=amount+' 金币';
     document.getElementById('payUsdt').textContent='≈ '+usdt.order.usdtAmount+' USDT';
