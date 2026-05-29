@@ -179,6 +179,23 @@ router.put('/users/:id/toggle', (req, res) => {
 
 // ========== Fund Trace ==========
 
+// List all deposit orders (admin)
+router.get('/deposits', (req, res) => {
+  const status = req.query.status;
+  let deposits = store.getDepositOrders ? store.getDepositOrders() : [];
+  if (status) deposits = deposits.filter(d => d.status === status);
+  res.json({ data: deposits });
+});
+
+// Cancel a pending deposit order (admin)
+router.put('/deposits/:id/cancel', (req, res) => {
+  const order = store.getDepositOrder ? store.getDepositOrder(req.params.id) : null;
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.status !== 'pending') return res.status(400).json({ error: { message: '只能取消待处理的订单' } });
+  store.updateDepositOrder(order.id, { status: 'cancelled', note: req.body.note || '管理员取消' });
+  res.json({ success: true, message: '订单已取消' });
+});
+
 // Trace user's complete fund flow
 router.get('/trace/user/:userId', (req, res) => {
   const user = store.getUserById(req.params.userId);

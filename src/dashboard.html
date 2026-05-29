@@ -619,6 +619,7 @@
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminProviders')">提供商</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-users')">用户</button>
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-deposits')">充值</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-withdrawals')">提现</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-trace')">追踪</button>
                 <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出</button>
@@ -646,6 +647,10 @@
                   <h4 style="font-size:13px">提现管理</h4>
                 </div>
                 <div id="withdrawalsList" style="font-size:13px;color:var(--text-secondary)">加载中...</div>
+              </div>
+              <div id="tab-deposits" style="display:none">
+                <h4 style="font-size:13px;margin-bottom:10px">充值订单管理</h4>
+                <div id="depositOrdersList" style="font-size:13px;color:var(--text-secondary)">加载中...</div>
               </div>
               <div id="tab-trace" style="display:none">
                 <h4 style="font-size:13px;margin-bottom:10px">资金追踪</h4>
@@ -1026,11 +1031,12 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     function showAdminSection(id) {
-      ['adminProviders', 'adminKeys', 'tab-users', 'tab-withdrawals', 'tab-trace'].forEach(s => {
+      ['adminProviders', 'adminKeys', 'tab-users', 'tab-deposits', 'tab-withdrawals', 'tab-trace'].forEach(s => {
         document.getElementById(s).style.display = s === id ? '' : 'none';
       });
       if (id === 'tab-withdrawals') loadWithdrawals();
       if (id === 'tab-users') loadUsers();
+      if (id === 'tab-deposits') loadDeposits();
     }
 
     async function loadUsers() {
@@ -1053,6 +1059,46 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
             '<button class="btn btn-sm ' + btnClass + '" onclick="toggleUser(\'' + u.id + '\',\'' + _esc(u.username) + '\')">' + btnText + '</button></div>';
         }).join('');
       } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+    }
+
+    async function loadDeposits() {
+      const el = document.getElementById('depositOrdersList');
+      if (!adminToken) { el.innerHTML = '<div style="text-align:center;padding:20px">请先登录管理员</div>'; return; }
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/deposits', { headers: { 'Authorization': 'Bearer ' + adminToken } });
+        const data = await resp.json();
+        if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
+        const deposits = data.data || [];
+        if (!deposits.length) { el.innerHTML = '<div style="text-align:center;padding:20px">暂无充值订单</div>'; return; }
+        const statusColors = { pending: 'var(--warning)', completed: 'var(--success)', expired: 'var(--text3)', cancelled: 'var(--error)' };
+        const statusLabels = { pending: '待处理', completed: '已完成', expired: '已过期', cancelled: '已取消' };
+        el.innerHTML = deposits.map(d => {
+          const sc = statusColors[d.status] || 'var(--text3)';
+          const sl = statusLabels[d.status] || d.status;
+          return '<div style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-secondary)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+            '<div><strong style="font-size:13px">' + d.usdtAmount + ' USDC → ' + d.coins + ' 币</strong> <span style="color:' + sc + ';font-size:12px">(' + sl + ')</span></div>' +
+            (d.status === 'pending' ? '<button class="btn btn-sm btn-danger" onclick="cancelDeposit(\'' + d.id + '\')">取消</button>' : '') +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">ID: ' + d.id + ' | 用户: ' + d.userId + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">发件人: ' + _esc(d.fromAddress || '未提供') + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">创建: ' + new Date(d.createdAt).toLocaleString() +
+            (d.txHash ? ' | TxID: ' + d.txHash.slice(0, 16) + '...' : '') + '</div></div>';
+        }).join('');
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+    }
+
+    async function cancelDeposit(id) {
+      if (!confirm('确定取消此充值订单？')) return;
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/deposits/' + id + '/cancel', {
+          method: 'PUT', headers: { 'Authorization': 'Bearer ' + adminToken },
+        });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error.message, 'error'); return; }
+        showToast(data.message, 'success');
+        loadDeposits();
+      } catch (e) { showToast('操作失败: ' + e.message, 'error'); }
     }
 
     async function toggleUser(id, name) {
