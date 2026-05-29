@@ -1189,23 +1189,30 @@ router.get('/deposit/:orderId', userAuth, (req, res) => {
 });
 
 // Submit txHash for faster verification
+const _txHashLocks = new Set();
 router.post('/deposit/verify', userAuth, async (req, res) => {
   const { orderId, txHash } = req.body;
   if (!orderId || !txHash) return res.status(400).json({ error: { message: '订单号和交易哈希必填' } });
 
-  const order = store.getDepositOrder(orderId);
-  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
-  if (order.userId !== req.userId) return res.status(403).json({ error: { message: '无权操作' } });
-  if (order.status === 'completed') return res.json({ success: true, message: '订单已完成' });
-
-  // Check if txHash already processed
-  if (store.isDepositTxProcessed(txHash)) {
-    return res.json({ success: true, message: '此交易已被处理' });
+  // Lock on txHash to prevent double-submit race condition
+  if (_txHashLocks.has(txHash)) {
+    return res.status(429).json({ error: { message: '此交易正在验证中，请勿重复提交' } });
   }
+  _txHashLocks.add(txHash);
 
-  // Verify transaction on blockchain
-  const usdtPayment = require('../services/usdtPayment');
   try {
+    const order = store.getDepositOrder(orderId);
+    if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+    if (order.userId !== req.userId) return res.status(403).json({ error: { message: '无权操作' } });
+    if (order.status === 'completed') return res.json({ success: true, message: '订单已完成' });
+
+    // Check if txHash already processed
+    if (store.isDepositTxProcessed(txHash)) {
+      return res.json({ success: true, message: '此交易已被处理' });
+    }
+
+    // Verify transaction on blockchain
+    const usdtPayment = require('../services/usdtPayment');
     const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount, 0.0001);
     if (result.verified) {
       // Anti-fraud: verify the sender is not the hot wallet itself
@@ -1225,6 +1232,8 @@ router.post('/deposit/verify', userAuth, async (req, res) => {
     }
   } catch (e) {
     res.status(500).json({ error: { message: '验证失败: ' + e.message } });
+  } finally {
+    _txHashLocks.delete(txHash);
   }
 });
 
