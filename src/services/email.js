@@ -24,7 +24,7 @@ async function sendEmail(to, subject, html) {
       }, {
         headers: {
           'Authorization': `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
         },
         timeout: 15000,
       });
