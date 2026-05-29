@@ -120,6 +120,12 @@ textarea{min-height:60px;resize:vertical}
 </script>
 </head>
 <body>
+<div id="app-loading" style="position:fixed;inset:0;z-index:99999;background:var(--bg,#0f1117);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .4s">
+  <div style="font-size:28px;font-weight:800;color:#6366f1;letter-spacing:2px">LLM API Relay</div>
+  <div style="width:40px;height:40px;border:3px solid rgba(99,102,241,.2);border-top-color:#6366f1;border-radius:50%;animation:spin .8s linear infinite"></div>
+  <div style="font-size:13px;color:#64748b">正在加载...</div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
 <header>
 <div class="container">
   <div style="display:flex;align-items:center;gap:16px">
@@ -1138,6 +1144,8 @@ document.getElementById('themeBtn').textContent=savedTheme==='dark'?'🌙':'☀�
 applyCardSize();
 checkAuth();
 showPage('home');
+// Hide loading screen
+var ld=document.getElementById('app-loading');if(ld){ld.style.opacity='0';setTimeout(function(){ld.remove()},400)}
 </script>
 <script>
 if ('serviceWorker' in navigator) {
