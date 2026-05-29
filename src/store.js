@@ -675,6 +675,8 @@ class Store {
   // Withdrawals
   getWithdrawals() { return this.state.withdrawals; }
 
+  getWithdrawalById(id) { return this.state.withdrawals.find(w => w.id === id); }
+
   getWithdrawalsByUser(userId) {
     return this.state.withdrawals.filter(w => w.userId === userId);
   }
@@ -854,6 +856,8 @@ class Store {
   getDepositOrder(id) {
     return this.state.depositOrders.find(o => o.id === id);
   }
+
+  getDepositOrders() { return this.state.depositOrders; }
 
   getPendingDepositOrders() {
     return this.state.depositOrders.filter(o => o.status === 'pending');

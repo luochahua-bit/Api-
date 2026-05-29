@@ -152,4 +152,45 @@ router.get('/stats', (req, res) => {
   });
 });
 
+// ========== Withdrawal Management ==========
+
+// List all withdrawals
+router.get('/withdrawals', (req, res) => {
+  const status = req.query.status; // optional filter: pending, completed, rejected
+  let withdrawals = store.getWithdrawals ? store.getWithdrawals() : [];
+  if (status) withdrawals = withdrawals.filter(w => w.status === status);
+  res.json({ data: withdrawals });
+});
+
+// Approve withdrawal (manual USDT transfer required)
+router.put('/withdrawals/:id/approve', (req, res) => {
+  const { txHash, note } = req.body;
+  const withdrawal = store.getWithdrawalById ? store.getWithdrawalById(req.params.id) : null;
+  if (!withdrawal) return res.status(404).json({ error: { message: '提现记录不存在' } });
+  if (withdrawal.status !== 'pending') return res.status(400).json({ error: { message: '只能审批待审核的提现' } });
+  store.updateWithdrawal(withdrawal.id, {
+    status: 'completed',
+    processedAt: Date.now(),
+    txHash: txHash || '',
+    note: note || '已批准',
+  });
+  res.json({ success: true, message: '提现已批准' });
+});
+
+// Reject withdrawal (refund coins to user)
+router.put('/withdrawals/:id/reject', (req, res) => {
+  const { reason } = req.body;
+  const withdrawal = store.getWithdrawalById ? store.getWithdrawalById(req.params.id) : null;
+  if (!withdrawal) return res.status(404).json({ error: { message: '提现记录不存在' } });
+  if (withdrawal.status !== 'pending') return res.status(400).json({ error: { message: '只能拒绝待审核的提现' } });
+  // Refund coins to user
+  store.addCoins(withdrawal.userId, withdrawal.coins, `提现被拒绝，退还 ${withdrawal.coins} 币`);
+  store.updateWithdrawal(withdrawal.id, {
+    status: 'rejected',
+    processedAt: Date.now(),
+    note: reason || '已拒绝',
+  });
+  res.json({ success: true, message: '提现已拒绝，金币已退还' });
+});
+
 module.exports = router;

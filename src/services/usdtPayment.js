@@ -15,6 +15,7 @@ const MIN_DEPOSIT = parseFloat(process.env.USDT_MIN_DEPOSIT) || 1;
 const MAX_WITHDRAW = parseFloat(process.env.USDT_MAX_WITHDRAW) || 50;
 const TRONGRID_API = 'https://api.trongrid.io';
 const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'; // USDT-TRC20 contract
+const REQUIRED_CONFIRMATIONS = 20; // TRON: ~3s per block, 20 confirmations ≈ 1 minute
 
 let monitorInterval = null;
 
@@ -61,6 +62,15 @@ function checkDepositOrder(orderId) {
 
 // ========== Blockchain Monitoring ==========
 
+async function getLatestBlockNumber() {
+  try {
+    const resp = await axios.post(`${TRONGRID_API}/wallet/getnowblock`, {}, { timeout: 10000 });
+    return resp.data?.block_header?.raw_data?.number || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
 async function checkIncomingTransactions() {
   if (!WALLET_ADDRESS) return;
 
@@ -88,12 +98,26 @@ async function checkIncomingTransactions() {
     }
 
     const transactions = resp.data.data.filter(tx => tx.to === WALLET_ADDRESS.toLowerCase());
+    // Check both pending and recently expired orders (user may have sent USDT after expiry)
     const pendingOrders = store.getPendingDepositOrders();
+    const recentExpiredOrders = (store.getDepositOrders ? store.getDepositOrders() : [])
+      .filter(o => o.status === 'expired' && Date.now() - o.expiresAt < 24 * 60 * 60 * 1000);
+    const matchableOrders = [...pendingOrders, ...recentExpiredOrders];
+    const latestBlock = await getLatestBlockNumber();
 
     for (const tx of transactions) {
       // Only process incoming USDT to our wallet
       if (tx.to !== WALLET_ADDRESS.toLowerCase()) continue;
       if (tx.token_info?.address !== USDT_CONTRACT) continue;
+
+      // Check block confirmations (prevent double-spend)
+      if (latestBlock > 0 && tx.block_number) {
+        const confirmations = latestBlock - tx.block_number;
+        if (confirmations < REQUIRED_CONFIRMATIONS) {
+          console.log(`[USDT] Tx ${tx.transaction_id} has ${confirmations} confirmations, need ${REQUIRED_CONFIRMATIONS}. Skipping.`);
+          continue;
+        }
+      }
 
       const amount = parseFloat(tx.value) / 1e6; // USDT has 6 decimals
       const txHash = tx.transaction_id;
@@ -101,8 +125,8 @@ async function checkIncomingTransactions() {
       // Check if this tx was already processed
       if (store.isDepositTxProcessed(txHash)) continue;
 
-      // Match with pending order by amount
-      const matchedOrder = pendingOrders.find(o => {
+      // Match with pending/expired order by amount
+      const matchedOrder = matchableOrders.find(o => {
         const diff = Math.abs(o.usdtAmount - amount);
         return diff < 0.001; // allow small rounding difference
       });
