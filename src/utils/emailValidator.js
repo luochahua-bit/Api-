@@ -66,7 +66,13 @@ function validateEmail(email) {
  * @returns {string}
  */
 function normalizeEmail(email) {
-  return email.trim().toLowerCase();
+  const trimmed = email.trim().toLowerCase();
+  const [local, domain] = trimmed.split('@');
+  // Gmail ignores dots in local part — normalize to prevent multi-account abuse
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    return local.replace(/\./g, '') + '@' + domain;
+  }
+  return trimmed;
 }
 
 module.exports = { validateEmail, normalizeEmail };
