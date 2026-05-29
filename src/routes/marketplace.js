@@ -21,6 +21,11 @@ const {
 
 const router = Router();
 
+// ==================== Constants ====================
+const ONE_MINUTE = 60 * 1000;
+const FIVE_MINUTES = 5 * 60 * 1000;
+const ONE_HOUR = 60 * 60 * 1000;
+
 // ==================== Auth ====================
 
 // Send verification code
@@ -29,8 +34,8 @@ const ipRegisterLimiter = {};
 const loginLimiter = {}; // IP login attempts: { count, ts }
 // Clean up expired rate limit entries every 5 minutes to prevent memory leak
 setInterval(() => {
-  const cutoff = Date.now() - 300000; // 5 minutes ago
-  const ipCutoff = Date.now() - 3600000; // 1 hour ago
+  const cutoff = Date.now() - FIVE_MINUTES;
+  const ipCutoff = Date.now() - ONE_HOUR;
   for (const key in sendCodeLimiter) {
     if (sendCodeLimiter[key] < cutoff) delete sendCodeLimiter[key];
   }
@@ -40,7 +45,7 @@ setInterval(() => {
   for (const key in loginLimiter) {
     if (loginLimiter[key].ts < cutoff) delete loginLimiter[key];
   }
-}, 300000);
+}, FIVE_MINUTES);
 router.post('/auth/send-code', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: { message: '请输入邮箱' } });
@@ -49,7 +54,7 @@ router.post('/auth/send-code', async (req, res) => {
   const ip = req.ip;
   const now = Date.now();
   if (!ipRegisterLimiter[ip]) ipRegisterLimiter[ip] = { count: 0, ts: now };
-  if (now - ipRegisterLimiter[ip].ts > 3600000) ipRegisterLimiter[ip] = { count: 0, ts: now };
+  if (now - ipRegisterLimiter[ip].ts > ONE_HOUR) ipRegisterLimiter[ip] = { count: 0, ts: now };
   ipRegisterLimiter[ip].count++;
   if (ipRegisterLimiter[ip].count > 3) {
     return res.status(429).json({ error: { message: '注册过于频繁，请 1 小时后再试' } });
@@ -59,8 +64,8 @@ router.post('/auth/send-code', async (req, res) => {
   if (!emailCheck.valid) return res.status(400).json({ error: { message: emailCheck.reason } });
   const normalizedEmail = normalizeEmail(email);
   // Rate limit: 60 seconds per email
-  if (sendCodeLimiter[normalizedEmail] && now - sendCodeLimiter[normalizedEmail] < 60000) {
-    const wait = Math.ceil((60000 - (now - sendCodeLimiter[normalizedEmail])) / 1000);
+  if (sendCodeLimiter[normalizedEmail] && now - sendCodeLimiter[normalizedEmail] < ONE_MINUTE) {
+    const wait = Math.ceil((ONE_MINUTE - (now - sendCodeLimiter[normalizedEmail])) / 1000);
     return res.status(429).json({ error: { message: `${wait} 秒后可重新发送` } });
   }
   if (store.getUserByEmail(normalizedEmail)) return res.status(409).json({ error: { message: '邮箱已注册' } });
@@ -129,7 +134,7 @@ router.post('/auth/login', async (req, res) => {
   const ip = req.ip;
   const now = Date.now();
   if (!loginLimiter[ip]) loginLimiter[ip] = { count: 0, ts: now };
-  if (now - loginLimiter[ip].ts > 60000) loginLimiter[ip] = { count: 0, ts: now };
+  if (now - loginLimiter[ip].ts > ONE_MINUTE) loginLimiter[ip] = { count: 0, ts: now };
   loginLimiter[ip].count++;
   if (loginLimiter[ip].count > 5) {
     return res.status(429).json({ error: { message: '登录尝试过于频繁，请 1 分钟后再试' } });
@@ -207,7 +212,7 @@ router.post('/tasks/:taskId/claim', userAuth, (req, res) => {
   const now = Date.now();
   const limiterKey = 'task_' + req.userId;
   if (!taskClaimLimiter[limiterKey]) taskClaimLimiter[limiterKey] = [];
-  taskClaimLimiter[limiterKey] = taskClaimLimiter[limiterKey].filter(t => now - t < 60000);
+  taskClaimLimiter[limiterKey] = taskClaimLimiter[limiterKey].filter(t => now - t < ONE_MINUTE);
   if (taskClaimLimiter[limiterKey].length >= 10) {
     return res.status(429).json({ error: { message: '操作过于频繁，请稍后再试' } });
   }
@@ -981,7 +986,7 @@ router.post('/redeem', userAuth, (req, res) => {
   const now = Date.now();
   const limiterKey = 'redeem_' + req.userId;
   if (!redeemAttempts[limiterKey]) redeemAttempts[limiterKey] = [];
-  redeemAttempts[limiterKey] = redeemAttempts[limiterKey].filter(t => now - t < 60000);
+  redeemAttempts[limiterKey] = redeemAttempts[limiterKey].filter(t => now - t < ONE_MINUTE);
   if (redeemAttempts[limiterKey].length >= 5) {
     return res.status(429).json({ error: { message: '兑换尝试过于频繁，请 1 分钟后再试' } });
   }
@@ -1015,7 +1020,7 @@ router.post('/coin/redeem', userAuth, (req, res) => {
   const now = Date.now();
   const key = 'redeem_' + req.userId;
   if (!redeemAttempts[key]) redeemAttempts[key] = [];
-  redeemAttempts[key] = redeemAttempts[key].filter(t => now - t < 60000);
+  redeemAttempts[key] = redeemAttempts[key].filter(t => now - t < ONE_MINUTE);
   if (redeemAttempts[key].length >= 5) {
     return res.status(429).json({ error: { message: '兑换尝试过于频繁，请 1 分钟后再试' } });
   }
