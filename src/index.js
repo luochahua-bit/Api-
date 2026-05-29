@@ -176,6 +176,8 @@ app.use((err, req, res, next) => {
 
 // Only start server when running directly (not in Vercel serverless)
 if (!process.env.VERCEL) {
+  // Try to restore database from cloud backup if local file missing
+  store.restoreFromCloud().catch(e => console.error('[Restore] Error:', e.message)).finally(() => {
   app.listen(config.port, () => {
     console.log('');
     console.log('========================================');
@@ -211,6 +213,10 @@ if (!process.env.VERCEL) {
     const usdtPayment = require('./services/usdtPayment');
     usdtPayment.startMonitor();
 
+    // Start cloud backup service
+    const backup = require('./services/backup');
+    backup.start();
+
     // Clean expired verification codes every hour
     setInterval(() => {
       try { store.cleanExpiredCodes(); } catch (e) { /* ignore */ }
@@ -230,6 +236,7 @@ if (!process.env.VERCEL) {
       } catch (e) { /* ignore */ }
     }, 60 * 60 * 1000);
   });
-}
+  }); // close finally
+} // close if !VERCEL
 
 module.exports = app;

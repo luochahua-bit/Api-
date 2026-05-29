@@ -45,6 +45,16 @@ class Store {
     this.initBackup();
   }
 
+  // Called from index.js after startup — async restore from cloud if local file missing
+  async restoreFromCloud() {
+    if (fs.existsSync(config.dbPath)) return; // local file exists, no need to restore
+    const backup = require('./services/backup');
+    const restored = await backup.restore();
+    if (restored) {
+      this.load(); // reload from restored file
+    }
+  }
+
   load() {
     try {
       if (fs.existsSync(config.dbPath)) {

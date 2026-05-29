@@ -66,3 +66,8 @@ services:
         value: "1"
       - key: USDT_MAX_WITHDRAW
         value: "50"
+      # Supabase cloud backup
+      - key: SUPABASE_URL
+        value: "https://gkiwcgyalrgfkmalhqch.supabase.co"
+      - key: SUPABASE_KEY
+        sync: false
