@@ -128,6 +128,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ADMIN_JWT_SECRET } = require('./middleware/adminAuth');
 const ADMIN_PANEL_PASSWORD = '20060303';
+const ADMIN_USERS = (process.env.ADMIN_USERS || 'luo').split(',');
 const adminLoginAttempts = {};
 setInterval(() => {
   const cutoff = Date.now() - 300000;
@@ -153,6 +154,7 @@ app.post('/api/admin/login', (req, res) => {
     const decoded = jwt.verify(userToken, JWT_SECRET);
     const user = store.getUserById(decoded.userId);
     if (!user || !user.enabled) return res.status(403).json({ error: { message: '用户未登录或已被禁用' } });
+    if (!ADMIN_USERS.includes(user.username)) return res.status(403).json({ error: { message: '此账号没有管理员权限' } });
   } catch (e) {
     return res.status(401).json({ error: { message: '请先登录用户账号' } });
   }

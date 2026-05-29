@@ -6,3 +6,4 @@ process.env.MARKET_ENCRYPT_KEY = 'test-encrypt-key-for-testing-32b';
 process.env.PORT = '0'; // random available port
 process.env.RESEND_API_KEY = ''; // disable email in tests
 process.env.API_KEYS = 'sk-test-key-12345';
+process.env.ADMIN_USERS = 'demo_seller,luo'; // test users with admin access
