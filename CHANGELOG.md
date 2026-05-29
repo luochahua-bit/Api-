@@ -11,37 +11,57 @@
 - Provider 健康告警 — 连续失败 10/50/100/500/1000 次时输出告警日志
 - `/health` 端点新增 `degraded` 状态（任一 Provider 连续失败 ≥10 次）
 - dashboard.html / marketplace.html 注册 service worker
+- Loading 动画 — SPA 加载期间显示品牌 + 旋转动画
+- GitHub Actions keep-alive — 每 10 分钟 ping 防止 Render 休眠
+- 登录/注册按钮 loading 状态 — 等待期间显示"登录中..."/"注册中..."
 
 ### Fixed
 - Admin 登录明文密码比较 — 改用 `crypto.timingSafeEqual`，防 timing attack
 - Admin token 永不过期 — 改为 JWT 2小时有效期
 - `/auth/login` 无速率限制 — 新增 5次/分钟/IP 限频
+- `/wallet/topup` 绕过 admin auth — 改为 userAuth + adminAuth 双重认证
+- JWT_SECRET 硬编码 fallback — 去掉 `'market-secret-key-change-in-production'`，未设置时拒绝启动
+- MARKET_ENCRYPT_KEY 硬编码 fallback — 去掉 `'market-encrypt-key-32bytes!!!!!'`，未设置时拒绝启动
+- store.js 种子数据加密 key 硬编码 — 改用环境变量
+- adminPassword 硬编码 fallback `'admin123'` — 去掉 fallback，未设置时拒绝启动
 - JSON body limit 10MB 过大 — 降到 1MB
 - ID 碰撞风险 — `Date.now() + Math.random()` 全部改为 `crypto.randomUUID()`
 - 流式 token 估算不准 — `chunkCount * 10` 改为 `byteCount / 3`
 - PWA manifest.json 无 service worker — 补全 service-worker.js
 - `security.js` 缺少 crypto 导入 — 已补全
 - Resend 域名验证 — 修复 DNS 记录与 Resend 域名不匹配问题
+- `/health` 端点暴露完整 Provider 信息 — 脱敏，只返回 healthy/total
+- demo 账户密码 `demo123` — 改为随机字符串
+- dashboard.html CSS 多余 `}` 语法错误 — 已修复
+- hero 按钮移动端溢出 — 添加 flex-wrap
+- 未使用 import 清理 — 移除 5 个死代码 import
 
 ### Changed
 - `adminAuth.js` 从静态 hash 验证改为 JWT 验证（支持过期、角色检查）
+- `userAuth.js` JWT_SECRET 从 fallback 改为必填（未设置时拒绝启动）
+- `config.js` adminPassword 从 fallback 改为必填
 - `index.js` 中间件链新增 compression + requestLogger
 - `store.js` 所有 ID 生成改用 `crypto.randomUUID()`
 - `healthCheck.js` 连续失败时输出阈值告警（10/50/100/500/1000）
 - `.env.example` 补全 15 个变量文档
-- `render.yaml` 补全 JWT_SECRET、MARKET_ENCRYPT_KEY、RESEND_API_KEY
+- `render.yaml` JWT_SECRET 和 MARKET_ENCRYPT_KEY 改为 `generateValue: true`
+- 首页 hero 区域 — 标题改为"免费使用 40+ AI 模型"，新增"免费试用"按钮
+- `marketplace-styles.css` — hero 按钮 480px 以下自动换行
 
 ### Security
 - Admin 登录 timing attack 修复（crypto.timingSafeEqual）
 - /auth/login 暴力破解防护（5次/分钟/IP）
+- /wallet/topup 需要 userAuth + adminAuth 双重认证
 - Admin token 过期机制（2小时 JWT）
+- JWT_SECRET 必填（去掉硬编码 fallback）
+- MARKET_ENCRYPT_KEY 必填（去掉硬编码 fallback）
+- adminPassword 必填（去掉 'admin123' fallback）
 - JSON body 大小限制收紧（10MB → 1MB）
 - ID 生成使用密码学安全随机（crypto.randomUUID）
+- /health 端点脱敏（不暴露 Provider 列表和 API Key）
+- demo 账户密码随机化
 
 ### Pending（需用户手动操作）
-- 本地代码 `git push` 到 GitHub（我这边网络连不上）
-- Render 上确认 EMAIL_FROM 为 `LLM中转站 <noreply@llm-relay.xyz>`
-- Render 上确认 RESEND_API_KEY 为 Full Access 权限的 Key
 - 接入 Cloudflare 防 DNS 攻击
 - 更新离线 Provider 的 API Key（7 个 Provider 目前不可用）
 
