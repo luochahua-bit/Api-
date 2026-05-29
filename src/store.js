@@ -598,6 +598,7 @@ class Store {
   addMarketApiKey(apiKey) {
     this.state.marketApiKeys.push(apiKey);
     this.save();
+    this._triggerCoinBackup(); // backup on key purchase (buyer gets key)
     return true;
   }
 
@@ -702,6 +703,7 @@ class Store {
         this.addCoinTransaction('platform', 'fee', fee, description + ' (平台服务费)');
       }
       this.save();
+      this._triggerCoinBackup(); // backup on transaction completion
       return true;
     } finally {
       for (const id of ids) this._locks.delete(id);
@@ -720,6 +722,7 @@ class Store {
       user.coins = (user.coins || 0) + amount;
       this.addCoinTransaction(userId, 'refund', amount, description);
       this.save();
+      this._triggerCoinBackup(); // backup on refund
       return true;
     } finally {
       this._locks.delete(userId);
