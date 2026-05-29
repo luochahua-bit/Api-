@@ -1,6 +1,7 @@
 const config = require('../config');
 
 const clients = new Map();
+const ANON_LIMIT = 10; // Requests per minute for unauthenticated users
 
 setInterval(() => {
   const now = Date.now();
@@ -12,7 +13,8 @@ setInterval(() => {
 }, config.rateLimit.windowMs);
 
 module.exports = function rateLimit(req, res, next) {
-  const clientKey = req.apiKey || req.ip;
+  const hasKey = !!req.apiKey;
+  const clientKey = req.apiKey || `ip:${req.ip}`;
   const now = Date.now();
   let client = clients.get(clientKey);
 
@@ -23,10 +25,11 @@ module.exports = function rateLimit(req, res, next) {
 
   client.count++;
 
-  res.set('X-RateLimit-Limit', String(config.rateLimit.maxRequests));
-  res.set('X-RateLimit-Remaining', String(Math.max(0, config.rateLimit.maxRequests - client.count)));
+  const maxRequests = hasKey ? config.rateLimit.maxRequests : ANON_LIMIT;
+  res.set('X-RateLimit-Limit', String(maxRequests));
+  res.set('X-RateLimit-Remaining', String(Math.max(0, maxRequests - client.count)));
 
-  if (client.count > config.rateLimit.maxRequests) {
+  if (client.count > maxRequests) {
     return res.status(429).json({
       error: { message: 'Rate limit exceeded', type: 'rate_limit_error' },
     });
