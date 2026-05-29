@@ -80,8 +80,14 @@ async function getLatestBlockNumber() {
     const params = { module: 'proxy', action: 'eth_blockNumber', chainid: 42161 };
     if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
     const resp = await axios.get(ARBISCAN_API, { params, timeout: 10000 });
-    return parseInt(resp.data?.result, 16) || 0;
+    // Etherscan V2 returns hex string in result
+    const hex = resp.data?.result;
+    if (typeof hex === 'string' && hex.startsWith('0x')) {
+      return parseInt(hex, 16);
+    }
+    return 0;
   } catch (e) {
+    console.error('[USDC] getLatestBlockNumber error:', e.message);
     return 0;
   }
 }
@@ -112,7 +118,7 @@ async function checkIncomingTransactions() {
       return;
     }
 
-    const transactions = resp.data.result.filter(tx => tx.to.toLowerCase() === WALLET_ADDRESS);
+    const transactions = resp.data.result.filter(tx => tx.to && tx.to.toLowerCase() === WALLET_ADDRESS);
     const pendingOrders = store.getPendingDepositOrders();
     const recentExpiredOrders = (store.getDepositOrders ? store.getDepositOrders() : [])
       .filter(o => o.status === 'expired' && Date.now() - o.expiresAt < 24 * 60 * 60 * 1000);
@@ -121,7 +127,8 @@ async function checkIncomingTransactions() {
 
     for (const tx of transactions) {
       // Check block confirmations (prevent double-spend)
-      const txBlock = parseInt(tx.blockNumber);
+      const txBlock = typeof tx.blockNumber === 'string' && tx.blockNumber.startsWith('0x')
+        ? parseInt(tx.blockNumber, 16) : parseInt(tx.blockNumber);
       if (latestBlock > 0 && txBlock) {
         const confirmations = latestBlock - txBlock;
         if (confirmations < REQUIRED_CONFIRMATIONS) {
@@ -184,9 +191,10 @@ async function checkIncomingTransactions() {
 
 async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
   try {
+    // Use eth_getTransactionReceipt to get full transaction details including logs
     const params = {
-      module: 'transaction',
-      action: 'gettxinfo',
+      module: 'proxy',
+      action: 'eth_getTransactionReceipt',
       txhash: txHash,
       chainid: 42161,
     };
@@ -194,28 +202,31 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
 
     const resp = await axios.get(ARBISCAN_API, { params, timeout: 15000, validateStatus: () => true });
 
-    if (!resp.data || resp.data.status !== '1' || !resp.data.result) {
+    if (!resp.data || !resp.data.result) {
+      console.error('[USDC] verifyTransaction: no result from API', JSON.stringify(resp.data).slice(0, 200));
       return { verified: false, error: '交易查询失败，请确认交易哈希正确' };
     }
 
-    const tx = resp.data.result;
+    const receipt = resp.data.result;
 
     // Check if transaction was successful
-    if (tx.isError === '1') {
+    if (receipt.status !== '0x1') {
       return { verified: false, error: '此交易失败' };
     }
 
-    // Get the USDC transfer details from transaction logs
-    const usdcTransfer = tx.logs?.find(log =>
+    // Find USDC Transfer event in logs
+    const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+    const usdcTransfer = receipt.logs?.find(log =>
       log.address.toLowerCase() === USDC_CONTRACT.toLowerCase() &&
-      log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' // Transfer event
+      log.topics[0] === transferTopic
     );
 
     if (!usdcTransfer) {
+      console.error('[USDC] verifyTransaction: no USDC transfer found in logs');
       return { verified: false, error: '此交易不包含 USDC 转账' };
     }
 
-    // Decode the amount from the log data
+    // Decode the amount from the log data (USDC has 6 decimals)
     const amount = parseInt(usdcTransfer.data, 16) / 1e6;
     const diff = Math.abs(amount - expectedAmount);
 
@@ -223,12 +234,12 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
       return { verified: false, error: `金额不匹配：期望 ${expectedAmount} USDC，实际 ${amount} USDC` };
     }
 
-    // Extract sender address from Transfer event topics (topics[1] = from)
+    // Extract sender address from Transfer event topics (topics[1] = from, padded to 32 bytes)
     const from = usdcTransfer.topics[1] ? '0x' + usdcTransfer.topics[1].slice(26) : '';
 
     // Check confirmations
     const latestBlock = await getLatestBlockNumber();
-    const txBlock = parseInt(tx.blockNumber);
+    const txBlock = parseInt(receipt.blockNumber, 16);
     if (latestBlock > 0 && txBlock) {
       const confirmations = latestBlock - txBlock;
       if (confirmations < REQUIRED_CONFIRMATIONS) {
