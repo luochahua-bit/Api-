@@ -794,10 +794,8 @@ router.get('/wallet/balance', userAuth, (req, res) => {
   });
 });
 
-router.post('/wallet/topup', (req, res) => {
-  const { adminPassword, userId, username, amount, note } = req.body;
-  const config = require('../config');
-  if (adminPassword !== config.adminPassword) return res.status(403).json({ error: { message: '管理密码错误' } });
+router.post('/wallet/topup', userAuth, adminAuth, (req, res) => {
+  const { userId, username, amount, note } = req.body;
   let targetUser;
   if (userId) targetUser = store.getUserById(userId);
   else if (username) targetUser = store.getUserByUsername(username);

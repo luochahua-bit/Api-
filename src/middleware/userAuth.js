@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 const store = require('../store');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'market-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET environment variable is not set. Exiting.');
+  process.exit(1);
+}
 
 module.exports = function userAuth(req, res, next) {
   const authHeader = req.headers.authorization;

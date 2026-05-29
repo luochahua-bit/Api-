@@ -23,7 +23,11 @@ function genId(prefix) {
 }
 
 // Encrypt API key for storage
-const ENCRYPTION_KEY = process.env.MARKET_ENCRYPT_KEY || 'market-encrypt-key-32bytes!!!!!';
+const ENCRYPTION_KEY = process.env.MARKET_ENCRYPT_KEY;
+if (!ENCRYPTION_KEY) {
+  console.error('[FATAL] MARKET_ENCRYPT_KEY environment variable is not set. Exiting.');
+  process.exit(1);
+}
 const ALGORITHM = 'aes-256-cbc';
 
 function encryptKey(text) {
