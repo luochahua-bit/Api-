@@ -894,39 +894,51 @@ class Store {
 
   // ========== Free Coins + Task System ==========
 
-  // Add free coins to user (from task rewards)
+  // Add free coins to user (from task rewards) (concurrency-safe)
   addFreeCoins(userId, amount, description) {
-    const user = this.getUserById(userId);
-    if (!user) return false;
-    user.freeCoins = (user.freeCoins || 0) + amount;
-    this.addCoinTransaction(userId, 'task_reward', amount, description);
-    this.save();
-    return true;
+    if (this._locks.has(userId)) return false;
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user) return false;
+      user.freeCoins = (user.freeCoins || 0) + amount;
+      this.addCoinTransaction(userId, 'task_reward', amount, description);
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(userId);
+    }
   }
 
-  // Spend coins: free coins first, then paid coins
+  // Spend coins: free coins first, then paid coins (concurrency-safe)
   spendCoins(userId, amount, description) {
-    const user = this.getUserById(userId);
-    if (!user) return { success: false, error: '用户不存在' };
+    if (this._locks.has(userId)) return { success: false, error: '操作进行中，请稍后' };
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user) return { success: false, error: '用户不存在' };
 
-    const freeCoins = user.freeCoins || 0;
-    const paidCoins = user.coins || 0;
-    const total = freeCoins + paidCoins;
+      const freeCoins = user.freeCoins || 0;
+      const paidCoins = user.coins || 0;
+      const total = freeCoins + paidCoins;
 
-    if (total < amount) return { success: false, error: '金币不足' };
+      if (total < amount) return { success: false, error: '金币不足' };
 
-    let fromFree = Math.min(freeCoins, amount);
-    let fromPaid = amount - fromFree;
+      let fromFree = Math.min(freeCoins, amount);
+      let fromPaid = amount - fromFree;
 
-    user.freeCoins = freeCoins - fromFree;
-    user.coins = paidCoins - fromPaid;
-    user.totalCoinSpending = (user.totalCoinSpending || 0) + amount;
+      user.freeCoins = freeCoins - fromFree;
+      user.coins = paidCoins - fromPaid;
+      user.totalCoinSpending = (user.totalCoinSpending || 0) + amount;
 
-    if (fromFree > 0) this.addCoinTransaction(userId, 'spend_free', -fromFree, description + ' (免费币)');
-    if (fromPaid > 0) this.addCoinTransaction(userId, 'spend', -fromPaid, description + ' (付费币)');
+      if (fromFree > 0) this.addCoinTransaction(userId, 'spend_free', -fromFree, description + ' (免费币)');
+      if (fromPaid > 0) this.addCoinTransaction(userId, 'spend', -fromPaid, description + ' (付费币)');
 
-    this.save();
-    return { success: true, fromFree, fromPaid };
+      this.save();
+      return { success: true, fromFree, fromPaid };
+    } finally {
+      this._locks.delete(userId);
+    }
   }
 
   // Record task completion
