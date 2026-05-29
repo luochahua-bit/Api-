@@ -30,6 +30,15 @@ function createDepositOrder(userId, usdtAmount, fromAddress) {
     return { success: false, error: '单次最多充值 10000 USDC' };
   }
 
+  // Anti-fraud: check if this wallet address already has a pending order
+  if (fromAddress) {
+    const pendingOrders = store.getPendingDepositOrders();
+    const existing = pendingOrders.find(o => o.fromAddress && o.fromAddress.toLowerCase() === fromAddress.toLowerCase());
+    if (existing) {
+      return { success: false, error: '此钱包地址已有待处理的充值订单，请等待完成或联系客服' };
+    }
+  }
+
   // Generate unique amount with random decimals to distinguish orders
   const uniqueAmount = (usdtAmount + Math.random() * 0.01 + 0.001).toFixed(6);
   const coins = Math.floor(usdtAmount * COINS_PER_USDT);
