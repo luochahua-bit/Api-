@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const config = require('./config');
 
 const BACKUP_DIR = path.join(config.dataDir, 'backups');
@@ -697,7 +698,7 @@ class Store {
 
   addCoinTransaction(userId, type, coins, description) {
     this.state.coinTransactions.push({
-      id: 'ctx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      id: 'ctx_' + crypto.randomUUID(),
       userId, type, coins, description,
       createdAt: Date.now(),
     });
@@ -806,7 +807,7 @@ class Store {
   addTaskCompletion(userId, taskId, reward) {
     const today = new Date().toISOString().slice(0, 10);
     this.state.taskCompletions.push({
-      id: 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      id: 'tc_' + crypto.randomUUID(),
       userId, taskId, reward, date: today, createdAt: Date.now(),
     });
     this.save();

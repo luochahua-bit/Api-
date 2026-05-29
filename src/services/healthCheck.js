@@ -59,6 +59,10 @@ class HealthCheckService {
             consecutiveFailures,
           },
         });
+        // Alert at key thresholds to avoid log spam
+        if ([10, 50, 100, 500, 1000].includes(consecutiveFailures)) {
+          console.warn(`[HealthCheck] ALERT: ${provider.name} has failed ${consecutiveFailures} consecutive times — last error: ${err.message}`);
+        }
       }
     }
   }

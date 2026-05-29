@@ -57,24 +57,27 @@ router.post('/chat/completions', async (req, res) => {
       res.setHeader('X-Proxy-Provider', result.provider);
       res.setHeader('X-Request-Id', requestId);
 
-      let tokenCount = 0;
+      let chunkCount = 0;
+      let byteCount = 0;
       result.response.data.on('data', (chunk) => {
-        tokenCount++;
+        chunkCount++;
+        byteCount += chunk.length;
         res.write(chunk);
       });
       result.response.data.on('end', () => {
-        store.incrementStats(tokenCount);
+        store.incrementStats(chunkCount);
 
-        // Deduct free coins (streaming: estimate tokens from chunk count)
+        // Deduct free coins (streaming: estimate tokens from byte count)
+        // ~4 chars per English token, ~2 per CJK token; use 3 as mixed-content average
         if (req.keyTier === 'free' && req.freeKeyUserId) {
-          const estimatedTokens = tokenCount * 10; // rough estimate: ~10 tokens per chunk
+          const estimatedTokens = Math.max(1, Math.round(byteCount / 3));
           const deductResult = deductFreeCoins(req.freeKeyUserId, estimatedTokens);
           // Can't set headers after streaming starts, but deduction still happens
         }
 
         logger.logRequest({
           id: requestId, model, provider: result.provider,
-          status: 'streaming', tokens: tokenCount, duration: result.duration,
+          status: 'streaming', tokens: chunkCount, duration: result.duration,
           apiKey: req.apiKey,
         });
         res.end();

@@ -1824,5 +1824,10 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     refreshStats();
     setInterval(refreshStats, 5000);
   </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/fixes/service-worker.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>

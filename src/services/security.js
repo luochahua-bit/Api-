@@ -2,6 +2,7 @@
  * Market Response Security Service
  * Validates and sanitizes API responses before forwarding to buyers
  */
+const crypto = require('crypto');
 
 // Suspicious patterns that indicate tampered responses
 const DANGEROUS_PATTERNS = [
@@ -145,7 +146,7 @@ function sanitizeStreamChunk(chunkStr) {
  */
 function logIncident(store, listingId, buyerId, reason, details) {
   store.addLog({
-    id: 'sec_' + Date.now(),
+    id: 'sec_' + crypto.randomUUID(),
     model: 'security',
     provider: listingId,
     status: 'security_warning',

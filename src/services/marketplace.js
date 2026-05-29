@@ -355,6 +355,7 @@ function processPayment(buyerId, sellerId, listingId, amount) {
 module.exports = {
   genId, encryptKey, decryptKey,
   testProviderKey, verifyModelsExist, verifyModelIdentity,
+  detectSourceLevel,
   processMarketRequest, calculatePrice, calculateModelPrice,
   freezeFunds, releaseFunds, refundFunds,
   topUpBalance, processPayment,

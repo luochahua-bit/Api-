@@ -3,10 +3,11 @@
  * Fallback: SMTP via nodemailer (for local development)
  */
 const axios = require('axios');
+const crypto = require('crypto');
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const SITE_NAME = process.env.SITE_NAME || 'LLM API 中转站';
-const SITE_URL = process.env.SITE_URL || 'https://llm-api-relay.onrender.com';
+const SITE_URL = process.env.SITE_URL || 'https://llm-relay.xyz';
 const EMAIL_FROM = process.env.EMAIL_FROM || `${SITE_NAME} <onboarding@resend.dev>`;
 
 // ========== Core Send ==========
@@ -30,12 +31,17 @@ async function sendEmail(to, subject, html) {
       console.log(`[Email] Sent via Resend to ${to}: ${subject}`);
       return { success: true, id: resp.data?.id };
     } catch (err) {
-      console.error(`[Email] Resend failed to ${to}:`, err.response?.data?.message || err.message);
-      return { success: false, error: err.response?.data?.message || err.message };
+      const errMsg = err.response?.data?.message || err.message;
+      console.error(`[Email] Resend failed to ${to}:`, errMsg);
+      // 如果是沙盒模式限制，提示需要验证域名
+      if (errMsg.includes('only send testing emails') || errMsg.includes('Not allowed')) {
+        return { success: false, error: '邮件发送受限：请在 Resend 后台验证域名 llm-relay.xyz，然后设置 EMAIL_FROM 环境变量' };
+      }
+      return { success: false, error: errMsg };
     }
   }
 
-  // Fallback: SMTP via nodemailer (local development)
+  // Fallback: SMTP via nodemailer (仅本地开发，Render 美国服务器连 QQ 邮箱会超时)
   const SMTP_HOST = process.env.SMTP_HOST || '';
   const SMTP_USER = process.env.SMTP_USER || '';
   const SMTP_PASS = process.env.SMTP_PASS || '';
@@ -107,7 +113,7 @@ function baseLayout(content, { title, buttonText, buttonUrl } = {}) {
 // ========== Verification Code ==========
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 async function sendVerificationEmail(toEmail, code) {

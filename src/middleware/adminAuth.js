@@ -1,7 +1,10 @@
+const jwt = require('jsonwebtoken');
 const config = require('../config');
 const crypto = require('crypto');
 
-const HASHED_TOKEN = 'adm_' + crypto.createHash('sha256').update(config.adminPassword + 'admin-salt').digest('hex').slice(0, 32);
+// Admin JWT secret: use env var or derive from admin password
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET
+  || crypto.createHash('sha256').update(config.adminPassword + 'admin-jwt-salt').digest('hex');
 
 module.exports = function adminAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -12,12 +15,15 @@ module.exports = function adminAuth(req, res, next) {
   }
 
   const token = authHeader.slice(7);
-  // Accept only the hashed token (not the raw password)
-  if (token !== HASHED_TOKEN) {
+  try {
+    const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
+    if (decoded.role !== 'admin') throw new Error('not admin');
+    next();
+  } catch {
     return res.status(403).json({
-      error: { message: 'Invalid admin token', type: 'auth_error' },
+      error: { message: 'Invalid or expired admin token', type: 'auth_error' },
     });
   }
-
-  next();
 };
+
+module.exports.ADMIN_JWT_SECRET = ADMIN_JWT_SECRET;

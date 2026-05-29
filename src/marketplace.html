@@ -1139,5 +1139,10 @@ applyCardSize();
 checkAuth();
 showPage('home');
 </script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/fixes/service-worker.js').catch(() => {});
+}
+</script>
 </body>
 </html>

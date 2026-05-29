@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 const config = require('./config');
@@ -7,6 +8,7 @@ const auth = require('./middleware/auth');
 const adminAuth = require('./middleware/adminAuth');
 const rateLimit = require('./middleware/rateLimit');
 const { securityHeaders, adminIpWhitelist, auditLog } = require('./middleware/security');
+const requestLogger = require('./middleware/requestLogger');
 const v1Routes = require('./routes/v1');
 const adminRoutes = require('./routes/admin');
 const marketRoutes = require('./routes/marketplace');
@@ -22,6 +24,7 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(securityHeaders);
 app.use(auditLog);
+app.use(requestLogger);
 
 // CORS - restrict in production
 const configuredOrigin = process.env.CORS_ORIGIN;
@@ -36,7 +39,8 @@ const corsOptions = process.env.NODE_ENV === 'production'
   : {};
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(compression());
 
 // Dashboard & Marketplace — dev mode reads file on each request, prod caches in memory
 const isDev = process.env.NODE_ENV !== 'production';
@@ -75,7 +79,9 @@ app.use('/fixes', express.static(path.join(__dirname, 'fixes'), {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', providers: providerManager.getProvidersInfo() });
+  const providers = providerManager.getProvidersInfo();
+  const degraded = providers.some(p => (p.health?.consecutiveFailures || 0) >= 10);
+  res.json({ status: degraded ? 'degraded' : 'ok', providers });
 });
 
 // Public stats for dashboard
@@ -109,7 +115,8 @@ app.use('/v1', auth, rateLimit, v1Routes);
 
 // Admin login (no auth required) — with rate limiting
 const crypto = require('crypto');
-const ADMIN_HASHED_TOKEN = 'adm_' + crypto.createHash('sha256').update(config.adminPassword + 'admin-salt').digest('hex').slice(0, 32);
+const jwt = require('jsonwebtoken');
+const { ADMIN_JWT_SECRET } = require('./middleware/adminAuth');
 const adminLoginAttempts = {};
 setInterval(() => {
   const cutoff = Date.now() - 300000;
@@ -128,10 +135,16 @@ app.post('/api/admin/login', (req, res) => {
     return res.status(429).json({ error: { message: '登录尝试过于频繁，请 1 分钟后再试' } });
   }
   const { password } = req.body;
-  if (password !== config.adminPassword) {
+  if (!password) return res.status(401).json({ error: { message: 'Invalid password' } });
+  // Constant-time comparison to prevent timing attacks
+  const pwBuf = Buffer.from(password, 'utf8');
+  const expectedBuf = Buffer.from(config.adminPassword, 'utf8');
+  const equal = pwBuf.length === expectedBuf.length
+    && crypto.timingSafeEqual(pwBuf, expectedBuf);
+  if (!equal) {
     return res.status(401).json({ error: { message: 'Invalid password' } });
   }
-  res.json({ success: true, token: ADMIN_HASHED_TOKEN });
+  res.json({ success: true, token: jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: '2h' }) });
 });
 
 // Admin routes (with IP whitelist in production)
@@ -175,8 +188,8 @@ if (!process.env.VERCEL) {
     if (!process.env.MARKET_ENCRYPT_KEY) {
       warnings.push('MARKET_ENCRYPT_KEY 未设置，API Key 加密不安全');
     }
-    if (!process.env.SMTP_USER) {
-      warnings.push('SMTP 未配置，邮箱验证码只打印到控制台');
+    if (!process.env.SMTP_USER && !process.env.RESEND_API_KEY) {
+      warnings.push('邮箱服务未配置（未设置 SMTP_USER 或 RESEND_API_KEY），验证码只打印到控制台');
     }
     if (warnings.length > 0) {
       console.log('');
@@ -190,6 +203,11 @@ if (!process.env.VERCEL) {
     // Start USDT deposit monitor
     const usdtPayment = require('./services/usdtPayment');
     usdtPayment.startMonitor();
+
+    // Clean expired verification codes every hour
+    setInterval(() => {
+      try { store.cleanExpiredCodes(); } catch (e) { /* ignore */ }
+    }, 60 * 60 * 1000);
   });
 }
 

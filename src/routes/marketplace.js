@@ -27,6 +27,7 @@ const router = Router();
 // Send verification code
 const sendCodeLimiter = {};
 const ipRegisterLimiter = {};
+const loginLimiter = {}; // IP login attempts: { count, ts }
 // Clean up expired rate limit entries every 5 minutes to prevent memory leak
 setInterval(() => {
   const cutoff = Date.now() - 300000; // 5 minutes ago
@@ -36,6 +37,9 @@ setInterval(() => {
   }
   for (const key in ipRegisterLimiter) {
     if (ipRegisterLimiter[key].ts < ipCutoff) delete ipRegisterLimiter[key];
+  }
+  for (const key in loginLimiter) {
+    if (loginLimiter[key].ts < cutoff) delete loginLimiter[key];
   }
 }, 300000);
 router.post('/auth/send-code', async (req, res) => {
@@ -62,7 +66,7 @@ router.post('/auth/send-code', async (req, res) => {
   }
   if (store.getUserByEmail(normalizedEmail)) return res.status(409).json({ error: { message: '邮箱已注册' } });
   const code = generateCode();
-  store.addVerificationCode({ id: 'vc_' + Date.now(), email: normalizedEmail, code, expiresAt: now + 5 * 60 * 1000, used: false, createdAt: now });
+  store.addVerificationCode({ id: 'vc_' + crypto.randomUUID(), email: normalizedEmail, code, expiresAt: now + 5 * 60 * 1000, used: false, createdAt: now });
   sendCodeLimiter[normalizedEmail] = now;
   const result = await sendVerificationEmail(normalizedEmail, code);
   if (result.success) {
@@ -122,6 +126,16 @@ router.post('/auth/register', async (req, res) => {
 });
 
 router.post('/auth/login', async (req, res) => {
+  // Rate limit: 5 attempts per IP per minute
+  const ip = req.ip;
+  const now = Date.now();
+  if (!loginLimiter[ip]) loginLimiter[ip] = { count: 0, ts: now };
+  if (now - loginLimiter[ip].ts > 60000) loginLimiter[ip] = { count: 0, ts: now };
+  loginLimiter[ip].count++;
+  if (loginLimiter[ip].count > 5) {
+    return res.status(429).json({ error: { message: '登录尝试过于频繁，请 1 分钟后再试' } });
+  }
+
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: { message: '用户名和密码必填' } });
   const user = store.getUserByUsername(username);
@@ -876,7 +890,7 @@ router.post('/v1/chat/completions', async (req, res) => {
       resp.data.on('end', () => {
         // Log request for dispute resolution
         store.addRequestLog({
-          id: 'rl_' + Date.now(), buyerKeyId: buyerKey.key, listingId: listing.id,
+          id: 'rl_' + crypto.randomUUID(), buyerKeyId: buyerKey.key, listingId: listing.id,
           sellerId: listing.sellerId, buyerId: buyerKey.userId,
           model: req.body.model || '', statusCode: 200, tokenCount: 0,
           latency, error: null, source: 'stream', timestamp: Date.now(), ip: req.ip,
@@ -899,7 +913,7 @@ router.post('/v1/chat/completions', async (req, res) => {
 
       // Log request for dispute resolution
       store.addRequestLog({
-        id: 'rl_' + Date.now(), buyerKeyId: buyerKey.key, listingId: listing.id,
+        id: 'rl_' + crypto.randomUUID(), buyerKeyId: buyerKey.key, listingId: listing.id,
         sellerId: listing.sellerId, buyerId: buyerKey.userId,
         model: actualModel, statusCode: resp.status, tokenCount: tokens,
         latency, error: null, source: listing.baseUrl, timestamp: Date.now(), ip: req.ip,
@@ -922,7 +936,7 @@ router.post('/v1/chat/completions', async (req, res) => {
     const statusCode = err.response?.status || 502;
     // Log failed request
     store.addRequestLog({
-      id: 'rl_' + Date.now(), buyerKeyId: buyerKey.key, listingId: listing.id,
+      id: 'rl_' + crypto.randomUUID(), buyerKeyId: buyerKey.key, listingId: listing.id,
       sellerId: listing.sellerId, buyerId: buyerKey.userId,
       model: req.body.model || '', statusCode, tokenCount: 0,
       latency, error: err.message, source: listing.baseUrl, timestamp: Date.now(), ip: req.ip,
@@ -1065,7 +1079,7 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
   store.deductCoins(req.userId, actualDeduct, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${feeInfo.payout}币=${usdtPayout}USDT)`);
 
   const withdrawal = {
-    id: 'wd_' + Date.now(),
+    id: 'wd_' + crypto.randomUUID(),
     userId: req.userId,
     username: req.user.username,
     coins,
@@ -1251,7 +1265,7 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
   store.updateUser(req.userId, { usdtAddress: walletAddress });
 
   const withdrawal = {
-    id: 'wd_' + Date.now(),
+    id: 'wd_' + crypto.randomUUID(),
     userId: req.userId,
     username: user.username,
     coins,

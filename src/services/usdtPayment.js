@@ -162,7 +162,7 @@ async function processWithdrawal(userId, coins) {
   store.deductCoins(userId, coins, `申请提现 ${coins} 币 (${usdtAmount} USDT)`);
 
   const withdrawal = {
-    id: 'wd_' + Date.now(),
+    id: 'wd_' + crypto.randomUUID(),
     userId,
     username: user.username,
     coins,
