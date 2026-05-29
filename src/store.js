@@ -457,6 +457,18 @@ class Store {
     return true;
   }
 
+  addKnownIp(userId, ip) {
+    const user = this.getUserById(userId);
+    if (!user) return;
+    if (!user.knownIps) user.knownIps = [];
+    if (!user.knownIps.includes(ip)) {
+      user.knownIps.push(ip);
+      // Keep last 50 IPs per user
+      if (user.knownIps.length > 50) user.knownIps = user.knownIps.slice(-50);
+      this.save();
+    }
+  }
+
   // ========== Marketplace: Listings ==========
   getListings() { return this.state.listings; }
 

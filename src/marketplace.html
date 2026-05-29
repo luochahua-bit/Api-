@@ -603,7 +603,23 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 function switchAuthTab(t){document.getElementById('loginForm').classList.toggle('hidden',t!=='login');document.getElementById('registerForm').classList.toggle('hidden',t!=='register');document.getElementById('authTabLogin').classList.toggle('btn-primary',t==='login');document.getElementById('authTabLogin').classList.toggle('btn-outline',t!=='login');document.getElementById('authTabRegister').classList.toggle('btn-primary',t==='register');document.getElementById('authTabRegister').classList.toggle('btn-outline',t!=='register');}
 
-async function doLogin(){var btn=document.getElementById('loginSubmitBtn');if(btn.disabled)return;btn.disabled=true;btn.textContent='登录中...';try{var d=await api('/auth/login',{method:'POST',body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('登录成功');if(_pendingBuyId){var bid=_pendingBuyId;_pendingBuyId=null;buyListing(bid);}else{showPage(currentPage);}}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='登录';}}
+async function doLogin(){var btn=document.getElementById('loginSubmitBtn');if(btn.disabled)return;btn.disabled=true;btn.textContent='登录中...';
+try{
+  var h={'Content-Type':'application/json'};
+  if(token)h['Authorization']='Bearer '+token;
+  var r=await fetch(API+'/auth/login',{method:'POST',headers:h,body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value,emailVerify:window._loginEmailVerify||undefined})});
+  var d=await r.json();
+  window._loginEmailVerify=undefined;
+  if(r.status===403&&d.requireEmailVerify){
+    // Ask for email verification
+    var digits=prompt('新设备登录验证\n\n您的邮箱：'+d.emailHint+'\n请输入邮箱名中间 4 位数字：');
+    if(digits){window._loginEmailVerify=digits;doLogin();return;}
+    btn.disabled=false;btn.textContent='登录';return;
+  }
+  if(d.error){toast(d.error.message,'error');btn.disabled=false;btn.textContent='登录';return;}
+  token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('登录成功');
+  if(_pendingBuyId){var bid=_pendingBuyId;_pendingBuyId=null;buyListing(bid);}else{showPage(currentPage);}
+}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='登录';}}
 async function doRegister(){var btn=document.getElementById('registerBtn');if(btn.disabled)return;btn.disabled=true;btn.textContent='注册中...';try{var inviteVal=document.getElementById('regInvite')?document.getElementById('regInvite').value.trim():'';var d=await api('/auth/register',{method:'POST',body:JSON.stringify({username:document.getElementById('regUsername').value,email:document.getElementById('regEmail').value,password:document.getElementById('regPassword').value,code:document.getElementById('regCode').value,inviteCode:inviteVal||undefined})});token=d.token;localStorage.setItem('market_token',token);currentUser=d.user;updateUI();closeModal('authModal');toast('注册成功，获得 10 免费币！');if(inviteVal){api('/tasks/use-invite',{method:'POST',body:JSON.stringify({code:inviteVal})}).catch(function(e){});}showPage(currentPage);}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='注册';}}
 
 var _sendCodeTimer=null;

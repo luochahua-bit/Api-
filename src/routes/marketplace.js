@@ -140,13 +140,38 @@ router.post('/auth/login', async (req, res) => {
     return res.status(429).json({ error: { message: '登录尝试过于频繁，请 1 分钟后再试' } });
   }
 
-  const { username, password } = req.body;
+  const { username, password, emailVerify } = req.body;
   if (!username || !password) return res.status(400).json({ error: { message: '用户名和密码必填' } });
   const user = store.getUserByUsername(username);
   if (!user) return res.status(401).json({ error: { message: '用户名或密码错误' } });
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ error: { message: '用户名或密码错误' } });
   if (!user.enabled) return res.status(403).json({ error: { message: '账号已被禁用' } });
+
+  // New IP verification: require middle 4 digits of email
+  const knownIps = user.knownIps || [];
+  if (!knownIps.includes(ip)) {
+    if (!emailVerify) {
+      // Ask for email verification
+      const emailHint = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+      return res.status(403).json({
+        error: { message: '新设备登录，请验证邮箱' },
+        requireEmailVerify: true,
+        emailHint: emailHint,
+        emailLength: user.email.split('@')[0].length,
+      });
+    }
+    // Verify middle 4 digits of email
+    const emailLocal = user.email.split('@')[0];
+    const mid = Math.floor(emailLocal.length / 2) - 2;
+    const expectedDigits = emailLocal.slice(mid, mid + 4);
+    if (emailVerify !== expectedDigits) {
+      return res.status(401).json({ error: { message: '邮箱验证失败，请输入邮箱名中间4位' } });
+    }
+    // Record this IP as known
+    store.addKnownIp(user.id, ip);
+  }
+
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });
   const { password: _, ...safeUser } = user;
   res.json({ success: true, token, user: safeUser });
