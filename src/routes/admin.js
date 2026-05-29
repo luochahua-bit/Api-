@@ -177,6 +177,47 @@ router.put('/users/:id/toggle', (req, res) => {
   res.json({ success: true, message: `用户 ${user.username} 已${newEnabled ? '启用' : '禁用'}` });
 });
 
+// ========== Fund Trace ==========
+
+// Trace user's complete fund flow
+router.get('/trace/user/:userId', (req, res) => {
+  const user = store.getUserById(req.params.userId);
+  if (!user) return res.status(404).json({ error: { message: '用户不存在' } });
+
+  const deposits = (store.getDepositOrders ? store.getDepositOrders() : [])
+    .filter(o => o.userId === user.id);
+  const withdrawals = store.getWithdrawalsByUser ? store.getWithdrawalsByUser(user.id) : [];
+  const coinTxns = store.getCoinTransactions ? store.getCoinTransactions(user.id) : [];
+
+  res.json({
+    user: { id: user.id, username: user.username, coins: user.coins || 0, freeCoins: user.freeCoins || 0 },
+    deposits: deposits.map(d => ({ id: d.id, amount: d.usdtAmount, coins: d.coins, status: d.status, txHash: d.txHash, createdAt: d.createdAt })),
+    withdrawals: withdrawals.map(w => ({ id: w.id, coins: w.coins, usdtAmount: w.usdtAmount, status: w.status, createdAt: w.createdAt })),
+    coinTransactions: coinTxns.slice(-50).map(t => ({ type: t.type, coins: t.coins, description: t.description, balanceAfter: t.balanceAfter, createdAt: t.createdAt })),
+    summary: {
+      totalDeposited: deposits.filter(d => d.status === 'completed').reduce((s, d) => s + (d.usdtAmount || 0), 0),
+      totalWithdrawn: withdrawals.filter(w => w.status === 'completed').reduce((s, w) => s + (w.usdtAmount || 0), 0),
+      pendingWithdrawals: withdrawals.filter(w => w.status === 'pending').length,
+    },
+  });
+});
+
+// Trace specific deposit order
+router.get('/trace/order/:orderId', (req, res) => {
+  const order = store.getDepositOrder ? store.getDepositOrder(req.params.orderId) : null;
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+
+  const user = store.getUserById(order.userId);
+  const coinTxns = store.getCoinTransactions ? store.getCoinTransactions(order.userId) : [];
+  const relatedTxns = coinTxns.filter(t => t.description && t.description.includes(order.id));
+
+  res.json({
+    order: { ...order },
+    user: user ? { id: user.id, username: user.username, coins: user.coins || 0 } : null,
+    relatedTransactions: relatedTxns,
+  });
+});
+
 // ========== Withdrawal Management ==========
 
 // Reconciliation

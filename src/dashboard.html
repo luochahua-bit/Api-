@@ -619,6 +619,7 @@
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-users')">用户</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-withdrawals')">提现</button>
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-trace')">追踪</button>
                 <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出</button>
               </div>
               <div id="adminProviders">
@@ -644,6 +645,18 @@
                   <h4 style="font-size:13px">提现管理</h4>
                 </div>
                 <div id="withdrawalsList" style="font-size:13px;color:var(--text-secondary)">加载中...</div>
+              </div>
+              <div id="tab-trace" style="display:none">
+                <h4 style="font-size:13px;margin-bottom:10px">资金追踪</h4>
+                <div style="display:flex;gap:8px;margin-bottom:12px">
+                  <input type="text" id="traceUserId" placeholder="用户 ID" style="flex:1;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:6px 10px;font-size:12px;outline:none">
+                  <button class="btn btn-primary btn-sm" onclick="traceUser()">查用户</button>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:12px">
+                  <input type="text" id="traceOrderId" placeholder="订单 ID (dep_xxx)" style="flex:1;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:6px 10px;font-size:12px;outline:none">
+                  <button class="btn btn-primary btn-sm" onclick="traceOrder()">查订单</button>
+                </div>
+                <div id="traceResult" style="font-size:12px"></div>
               </div>
             </div>
           </div>
@@ -1009,7 +1022,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     function showAdminSection(id) {
-      ['adminProviders', 'adminKeys', 'tab-users', 'tab-withdrawals'].forEach(s => {
+      ['adminProviders', 'adminKeys', 'tab-users', 'tab-withdrawals', 'tab-trace'].forEach(s => {
         document.getElementById(s).style.display = s === id ? '' : 'none';
       });
       if (id === 'tab-withdrawals') loadWithdrawals();
@@ -1049,6 +1062,76 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         showToast(data.message, 'success');
         loadUsers();
       } catch (e) { showToast('操作失败: ' + e.message, 'error'); }
+    }
+
+    async function traceUser() {
+      const userId = document.getElementById('traceUserId').value.trim();
+      if (!userId) { showToast('请输入用户 ID', 'error'); return; }
+      const el = document.getElementById('traceResult');
+      el.innerHTML = '加载中...';
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/trace/user/' + userId, {
+          headers: { 'Authorization': 'Bearer ' + adminToken },
+        });
+        const data = await resp.json();
+        if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
+        let html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">';
+        html += '<div style="font-weight:700;margin-bottom:6px">👤 ' + _esc(data.user.username) + ' (ID: ' + data.user.id + ')</div>';
+        html += '<div>金币: ' + data.user.coins + ' | 免费币: ' + data.user.freeCoins + '</div>';
+        html += '<div>累计充值: ' + data.summary.totalDeposited + ' USDC | 累计提现: ' + data.summary.totalWithdrawn + ' USDC</div>';
+        html += '<div>待审核提现: ' + data.summary.pendingWithdrawals + ' 笔</div>';
+        html += '</div>';
+        if (data.deposits.length) {
+          html += '<div style="font-weight:600;margin-bottom:4px">📥 充值记录</div>';
+          data.deposits.forEach(d => {
+            var sc = d.status === 'completed' ? 'var(--success)' : d.status === 'pending' ? 'var(--warning)' : 'var(--text3)';
+            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)">' + d.amount + ' USDC → ' + d.coins + ' 币 <span style="color:' + sc + '">(' + d.status + ')</span> ' + (d.txHash ? d.txHash.slice(0, 16) + '...' : '') + '</div>';
+          });
+        }
+        if (data.withdrawals.length) {
+          html += '<div style="font-weight:600;margin:8px 0 4px">📤 提现记录</div>';
+          data.withdrawals.forEach(w => {
+            var sc = w.status === 'completed' ? 'var(--success)' : w.status === 'pending' ? 'var(--warning)' : 'var(--error)';
+            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)">' + w.coins + ' 币 → ' + w.usdtAmount + ' USDC <span style="color:' + sc + '">(' + w.status + ')</span></div>';
+          });
+        }
+        if (data.coinTransactions.length) {
+          html += '<div style="font-weight:600;margin:8px 0 4px">💰 金币流水（最近50条）</div>';
+          data.coinTransactions.forEach(t => {
+            var c = t.coins >= 0 ? 'var(--success)' : 'var(--danger)';
+            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:' + c + '">' + (t.coins > 0 ? '+' : '') + t.coins + '</span> ' + _esc(t.description) + '</div>';
+          });
+        }
+        el.innerHTML = html;
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+    }
+
+    async function traceOrder() {
+      const orderId = document.getElementById('traceOrderId').value.trim();
+      if (!orderId) { showToast('请输入订单 ID', 'error'); return; }
+      const el = document.getElementById('traceResult');
+      el.innerHTML = '加载中...';
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/trace/order/' + orderId, {
+          headers: { 'Authorization': 'Bearer ' + adminToken },
+        });
+        const data = await resp.json();
+        if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
+        let html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px">';
+        html += '<div style="font-weight:700;margin-bottom:6px">📋 订单 ' + data.order.id + '</div>';
+        html += '<div>用户: ' + (data.user ? _esc(data.user.username) : '未知') + '</div>';
+        html += '<div>金额: ' + data.order.usdtAmount + ' USDC → ' + data.order.coins + ' 币</div>';
+        html += '<div>状态: ' + data.order.status + '</div>';
+        if (data.order.txHash) html += '<div>交易哈希: ' + data.order.txHash + '</div>';
+        html += '</div>';
+        if (data.relatedTransactions.length) {
+          html += '<div style="font-weight:600;margin:8px 0 4px">相关流水</div>';
+          data.relatedTransactions.forEach(t => {
+            html += '<div style="padding:4px 0">' + (t.coins > 0 ? '+' : '') + t.coins + ' ' + _esc(t.description) + '</div>';
+          });
+        }
+        el.innerHTML = html;
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
     }
 
     async function adminFetch(path, opts = {}) {
