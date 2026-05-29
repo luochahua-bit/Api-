@@ -104,8 +104,7 @@ class Store {
       }
 
       function encryptKey(text) {
-        const ENCRYPTION_KEY = 'market-encrypt-key-32bytes!!!!!';
-        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+        const key = crypto.scryptSync(process.env.MARKET_ENCRYPT_KEY, 'salt', 32);
         const iv = crypto.randomBytes(16);
         const cipher = require('crypto').createCipheriv('aes-256-cbc', key, iv);
         let encrypted = cipher.update(text, 'utf8', 'hex');
