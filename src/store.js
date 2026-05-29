@@ -350,6 +350,7 @@ class Store {
   // API Keys
   getApiKeys() { return this.state.apiKeys; }
 
+  /** @returns {{ key: string, name: string, enabled: boolean, usageCount: number, userId?: string, tier?: string }|undefined} */
   getApiKey(key) {
     return this.state.apiKeys.find(k => k.key === key);
   }
@@ -417,6 +418,7 @@ class Store {
   // ========== Marketplace: Users ==========
   getUsers() { return this.state.users; }
 
+  /** @returns {{ id: string, username: string, email: string, password: string, enabled: boolean, coins: number, freeCoins: number, frozenCoins: number }|undefined} */
   getUserById(id) {
     return this.state.users.find(u => u.id === id);
   }
@@ -496,6 +498,7 @@ class Store {
     return this.state.orders.filter(o => o.sellerId === sellerId);
   }
 
+  /** @param {{ id: string, buyerId: string, sellerId: string, listingId: string, amount: number, status: 'frozen'|'completed'|'refunded' }} order */
   addOrder(order) {
     this.state.orders.push(order);
     this.save();
@@ -584,6 +587,7 @@ class Store {
   // ========== Coin System ==========
 
   // Add coins to user balance
+  /** Deducts coins: freeCoins first, then coins. @returns {{ deducted: number, remaining: number }} */
   addCoins(userId, amount, description) {
     const user = this.getUserById(userId);
     if (!user) return false;
@@ -716,6 +720,7 @@ class Store {
     this.save();
   }
 
+  /** @returns {{ id: string, email: string, code: string, expiresAt: number, used: boolean }|null} */
   getValidVerificationCode(email, code) {
     const now = Date.now();
     return this.state.verificationCodes.find(c =>
