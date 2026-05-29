@@ -1,12 +1,15 @@
 const request = require('supertest');
 const app = require('../src/index');
+const jwt = require('jsonwebtoken');
 
 // Get a valid admin token for authenticated tests
 let adminToken;
+const testUserToken = jwt.sign({ userId: 'usr_29bfa96bd9296e1f714d' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
 beforeAll(async () => {
   const res = await request(app)
     .post('/api/admin/login')
-    .send({ password: 'test-admin-password-123' });
+    .send({ password: '20060303', userToken: testUserToken });
   adminToken = res.body.token;
 });
 
@@ -43,18 +46,32 @@ describe('Admin provider management', () => {
   });
 });
 
+describe('Admin login', () => {
+  test('rejects wrong password', async () => {
+    const res = await request(app)
+      .post('/api/admin/login')
+      .send({ password: 'wrong', userToken: testUserToken });
+    expect(res.status).toBe(401);
+  });
+
+  test('rejects without userToken', async () => {
+    const res = await request(app)
+      .post('/api/admin/login')
+      .send({ password: '20060303' });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('Rate limiting', () => {
   test('admin login rate limits after 5 attempts', async () => {
-    // Make 5 wrong attempts
     for (let i = 0; i < 5; i++) {
       await request(app)
         .post('/api/admin/login')
-        .send({ password: 'wrong' });
+        .send({ password: 'wrong', userToken: testUserToken });
     }
-    // 6th attempt should be rate limited
     const res = await request(app)
       .post('/api/admin/login')
-      .send({ password: 'wrong' });
+      .send({ password: 'wrong', userToken: testUserToken });
     expect(res.status).toBe(429);
   });
 });

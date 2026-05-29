@@ -127,6 +127,7 @@ app.use('/v1', auth, rateLimit, v1Routes);
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ADMIN_JWT_SECRET } = require('./middleware/adminAuth');
+const ADMIN_PANEL_PASSWORD = '20060303';
 const adminLoginAttempts = {};
 setInterval(() => {
   const cutoff = Date.now() - 300000;
@@ -138,23 +139,31 @@ app.post('/api/admin/login', (req, res) => {
   const ip = req.ip;
   const now = Date.now();
   if (!adminLoginAttempts[ip]) adminLoginAttempts[ip] = { count: 0, ts: now };
-  // Reset window after 1 minute
   if (now - adminLoginAttempts[ip].ts > 60000) adminLoginAttempts[ip] = { count: 0, ts: now };
   adminLoginAttempts[ip].count++;
   if (adminLoginAttempts[ip].count > 5) {
     return res.status(429).json({ error: { message: '登录尝试过于频繁，请 1 分钟后再试' } });
   }
-  const { password } = req.body;
-  if (!password) return res.status(401).json({ error: { message: 'Invalid password' } });
-  // Constant-time comparison to prevent timing attacks
-  const pwBuf = Buffer.from(password, 'utf8');
-  const expectedBuf = Buffer.from(config.adminPassword, 'utf8');
-  const equal = pwBuf.length === expectedBuf.length
-    && crypto.timingSafeEqual(pwBuf, expectedBuf);
-  if (!equal) {
-    return res.status(401).json({ error: { message: 'Invalid password' } });
+  const { password, userToken } = req.body;
+  if (!password || !userToken) return res.status(400).json({ error: { message: '需要用户登录 + 管理员密码' } });
+  // Verify user JWT first
+  try {
+    const jwt = require('jsonwebtoken');
+    const { JWT_SECRET } = require('./middleware/userAuth');
+    const decoded = jwt.verify(userToken, JWT_SECRET);
+    const user = store.getUserById(decoded.userId);
+    if (!user || !user.enabled) return res.status(403).json({ error: { message: '用户未登录或已被禁用' } });
+  } catch (e) {
+    return res.status(401).json({ error: { message: '请先登录用户账号' } });
   }
-  res.json({ success: true, token: jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: '2h' }) });
+  // Verify admin password
+  const pwBuf = Buffer.from(password, 'utf8');
+  const expectedBuf = Buffer.from(ADMIN_PANEL_PASSWORD, 'utf8');
+  const equal = pwBuf.length === expectedBuf.length && crypto.timingSafeEqual(pwBuf, expectedBuf);
+  if (!equal) {
+    return res.status(401).json({ error: { message: '管理员密码错误' } });
+  }
+  res.json({ success: true, token: jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: '4h' }) });
 });
 
 // Admin routes (with IP whitelist in production)

@@ -444,7 +444,7 @@
             <input type="text" id="userLoginUsername" placeholder="用户名" onkeydown="if(event.key==='Enter')userDoLogin()">
             <input type="password" id="userLoginPassword" placeholder="密码" onkeydown="if(event.key==='Enter')userDoLogin()">
             <button class="btn btn-primary" onclick="userDoLogin()" style="width:100%;margin-bottom:8px">登录</button>
-            <p style="font-size:11px;color:var(--text-secondary)">演示账号: <code>demo_buyer</code> / <code>demo123</code></p>
+            <p style="font-size:11px;color:var(--text-secondary)">先在上方登录用户账号，再输入管理员密码</p>
           </div>
         </div>
         <div id="userContent" style="display:none">
@@ -606,7 +606,7 @@
             <div class="chart-title">🔧 管理员设置</div>
             <div id="adminLogin">
               <div style="text-align:center;padding:16px">
-                <p style="color:var(--text-secondary);font-size:12px;margin-bottom:10px">输入管理员密码以管理提供商和 API 密钥</p>
+                <p style="color:var(--text-secondary);font-size:12px;margin-bottom:10px">请先登录用户账号，再输入管理员密码</p>
                 <div style="display:flex;gap:8px;max-width:300px;margin:0 auto">
                   <input type="password" id="adminPassword" placeholder="管理员密码" style="flex:1;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);padding:8px 10px;font-size:12px;outline:none" onkeydown="if(event.key==='Enter')adminLogin()">
                   <button class="btn btn-primary btn-sm" onclick="adminLogin()">登录</button>
@@ -923,10 +923,11 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     async function adminLogin() {
       const pwd = document.getElementById('adminPassword').value;
       if (!pwd) return;
+      if (!marketToken) { showToast('请先登录用户账号', 'error'); return; }
       try {
         const resp = await fetch(API_BASE + '/api/admin/login', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd }),
+          body: JSON.stringify({ password: pwd, userToken: marketToken }),
         });
         const data = await resp.json();
         if (data.error) { showToast(data.error.message, 'error'); return; }

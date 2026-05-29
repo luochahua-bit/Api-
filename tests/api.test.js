@@ -1,5 +1,8 @@
 const request = require('supertest');
 const app = require('../src/index');
+const jwt = require('jsonwebtoken');
+
+const testUserToken = jwt.sign({ userId: 'usr_29bfa96bd9296e1f714d' }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
 describe('GET /health', () => {
   test('returns status ok with provider counts', async () => {
@@ -43,27 +46,26 @@ describe('Admin login', () => {
   test('rejects wrong password', async () => {
     const res = await request(app)
       .post('/api/admin/login')
-      .send({ password: 'wrong-password' });
+      .send({ password: 'wrong-password', userToken: testUserToken });
     expect(res.status).toBe(401);
   });
 
   test('accepts correct password and returns JWT', async () => {
     const res = await request(app)
       .post('/api/admin/login')
-      .send({ password: 'test-admin-password-123' });
+      .send({ password: '20060303', userToken: testUserToken });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.token).toBeDefined();
     expect(typeof res.body.token).toBe('string');
-    // JWT has 3 parts separated by dots
     expect(res.body.token.split('.')).toHaveLength(3);
   });
 
-  test('rejects empty password', async () => {
+  test('rejects empty body', async () => {
     const res = await request(app)
       .post('/api/admin/login')
       .send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -74,10 +76,9 @@ describe('Admin routes require auth', () => {
   });
 
   test('returns data with valid admin token', async () => {
-    // First login to get token
     const loginRes = await request(app)
       .post('/api/admin/login')
-      .send({ password: 'test-admin-password-123' });
+      .send({ password: '20060303', userToken: testUserToken });
     const token = loginRes.body.token;
 
     const res = await request(app)
