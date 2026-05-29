@@ -210,10 +210,11 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
     const receipt = resp.data.result;
 
     // Check if transaction was successful (handle different status formats)
-    const status = String(receipt.status || '').toLowerCase();
-    if (status !== '0x1' && status !== '1' && status !== 'true') {
-      console.error('[USDC] Transaction failed, status:', receipt.status);
-      return { verified: false, error: '此交易失败' };
+    const status = String(receipt.status || receipt.txStatus || '').toLowerCase();
+    console.log(`[USDC] verifyTransaction: raw status=${JSON.stringify(receipt.status)}, txStatus=${JSON.stringify(receipt.txStatus)}, logs=${receipt.logs?.length || 0}`);
+    if (status !== '0x1' && status !== '1' && status !== 'true' && status !== 'success') {
+      console.error('[USDC] Transaction failed, status:', receipt.status, 'txStatus:', receipt.txStatus);
+      return { verified: false, error: '此交易失败 (status: ' + (receipt.status || 'null') + ')' };
     }
 
     // Find USDC Transfer event in logs
