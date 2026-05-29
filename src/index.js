@@ -4,6 +4,13 @@ const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 const config = require('./config');
+
+// Fatal checks for required security variables
+if (!config.adminPassword) {
+  console.error('[FATAL] ADMIN_PASSWORD environment variable is not set. Exiting.');
+  process.exit(1);
+}
+
 const auth = require('./middleware/auth');
 const adminAuth = require('./middleware/adminAuth');
 const rateLimit = require('./middleware/rateLimit');
@@ -179,11 +186,8 @@ if (!process.env.VERCEL) {
 
     // Security warnings for insecure defaults
     const warnings = [];
-    if (!process.env.ADMIN_PASSWORD || config.adminPassword === 'admin123') {
-      warnings.push('ADMIN_PASSWORD 使用默认值，请在环境变量中设置强密码');
-    }
     if (!process.env.JWT_SECRET) {
-      warnings.push('JWT_SECRET 未设置，使用硬编码默认值（不安全）');
+      warnings.push('JWT_SECRET 未设置（不应到达此处，启动时应已报错）');
     }
     if (!process.env.MARKET_ENCRYPT_KEY) {
       warnings.push('MARKET_ENCRYPT_KEY 未设置，API Key 加密不安全');
