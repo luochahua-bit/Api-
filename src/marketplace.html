@@ -361,6 +361,10 @@ textarea{min-height:60px;resize:vertical}
       <h3 style="font-size:14px;margin-bottom:10px">📊 金币流水</h3>
       <div id="coinTransactions"></div>
     </div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px">💸 提现记录</h3>
+      <div id="withdrawalList"></div>
+    </div>
   </div>
     <h3 style="margin-bottom:12px;font-size:15px">交易记录</h3>
     <div id="transactionsList"></div>
@@ -1071,6 +1075,20 @@ async function loadWallet(){
         '<div style="font-size:11px;color:var(--text3)">'+fmtTime(t.createdAt)+'</div></div>'+
         '<div style="font-weight:700;color:'+color+'">'+sign+t.coins+' 金币</div></div>';
     }).join('');
+    // Load withdrawals
+    try{
+      var wd=await api('/coin/withdrawals');
+      var wdEl=document.getElementById('withdrawalList');
+      if(!wd.data||!wd.data.length){wdEl.innerHTML='<div class="empty">暂无提现记录</div>';}
+      else{wdEl.innerHTML=wd.data.map(function(w){
+        var statusColor=w.status==='pending'?'var(--warning)':w.status==='completed'?'var(--success)':'var(--danger)';
+        var statusText=w.status==='pending'?'待审核':w.status==='completed'?'已通过':'已拒绝';
+        return'<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-bottom:6px">'+
+          '<div><div style="font-size:13px">📤 '+w.coins+' 金币 → '+(w.usdtAmount||'?')+' USDT</div>'+
+          '<div style="font-size:11px;color:var(--text3)">'+fmtTime(w.createdAt)+' | '+esc(w.walletAddress||'')+'</div></div>'+
+          '<div style="font-size:12px;font-weight:600;color:'+statusColor+'">'+statusText+'</div></div>';
+      }).join('');}
+    }catch(e){}
   }catch(e){toast(e.message,'error');}
 }
 
