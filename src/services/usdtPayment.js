@@ -22,7 +22,7 @@ let monitorInterval = null;
 
 // ========== Deposit Orders ==========
 
-function createDepositOrder(userId, usdtAmount) {
+function createDepositOrder(userId, usdtAmount, fromAddress) {
   if (usdtAmount < MIN_DEPOSIT) {
     return { success: false, error: `最低充值 ${MIN_DEPOSIT} USDC` };
   }
@@ -38,6 +38,7 @@ function createDepositOrder(userId, usdtAmount) {
   const order = {
     id: orderId,
     userId,
+    fromAddress: fromAddress || '', // sender's wallet address
     usdtAmount: parseFloat(uniqueAmount),
     coins,
     address: WALLET_ADDRESS,
@@ -131,6 +132,13 @@ async function checkIncomingTransactions() {
       });
 
       if (matchedOrder) {
+        // Anti-fraud: verify sender matches order's registered address
+        const sender = (tx.from || '').toLowerCase();
+        if (matchedOrder.fromAddress && sender && sender !== matchedOrder.fromAddress.toLowerCase()) {
+          console.warn(`[USDC] Sender mismatch for order ${matchedOrder.id}: expected ${matchedOrder.fromAddress}, got ${sender}. Skipping.`);
+          continue;
+        }
+
         store.updateDepositOrder(matchedOrder.id, {
           status: 'completed',
           txHash,

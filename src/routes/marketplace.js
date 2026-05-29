@@ -1163,17 +1163,20 @@ const { createDepositOrder, checkDepositOrder, COINS_PER_USDT, MIN_DEPOSIT, WALL
 
 // Create deposit order
 router.post('/deposit', userAuth, (req, res) => {
-  const { amount } = req.body;
+  const { amount, fromAddress } = req.body;
   if (!amount || amount < MIN_DEPOSIT) {
     return res.status(400).json({ error: { message: `最低充值 ${MIN_DEPOSIT} USDC` } });
   }
-  const result = createDepositOrder(req.userId, parseFloat(amount));
+  if (!fromAddress || !/^0x[0-9a-fA-F]{40}$/.test(fromAddress)) {
+    return res.status(400).json({ error: { message: '请填写你的 Arbitrum 钱包地址（0x 开头）' } });
+  }
+  const result = createDepositOrder(req.userId, parseFloat(amount), fromAddress.toLowerCase());
   if (!result.success) return res.status(400).json({ error: { message: result.error } });
   res.json({
     success: true,
     order: result.order,
     address: WALLET_ADDRESS,
-    message: `请转 ${result.order.usdtAmount} USDC 到指定地址`,
+    message: `请从 ${fromAddress} 转 ${result.order.usdtAmount} USDC 到指定地址`,
   });
 });
 
@@ -1208,6 +1211,10 @@ router.post('/deposit/verify', userAuth, async (req, res) => {
       // Anti-fraud: verify the sender is not the hot wallet itself
       if (result.from && result.from.toLowerCase() === WALLET_ADDRESS.toLowerCase()) {
         return res.status(400).json({ error: { message: '此交易是系统内部转账，不能用于充值' } });
+      }
+      // Anti-fraud: verify the sender matches the order's registered wallet address
+      if (order.fromAddress && result.from && result.from.toLowerCase() !== order.fromAddress.toLowerCase()) {
+        return res.status(400).json({ error: { message: '交易发送地址与订单注册地址不匹配，不能充值' } });
       }
       store.updateDepositOrder(orderId, { status: 'completed', txHash, confirmedAt: Date.now() });
       store.addCoins(order.userId, order.coins, `USDC 充值 ${result.amount} USDC → ${order.coins} 币`);

@@ -1189,9 +1189,14 @@ async function doRecharge(){
   var amount=parseInt(document.getElementById('rechargeAmount').value);
   if(!amount||amount<1){toast('请选择或输入充值金额','error');return;}
   if(!token){showAuthModal();return;}
+  // Ask for sender wallet address (anti-fraud)
+  var fromAddr=prompt('请输入你的 Arbitrum 钱包地址（0x 开头）：\n\n用于验证充值来源，防止冒领');
+  if(!fromAddr)return;
+  fromAddr=fromAddr.trim();
+  if(!fromAddr.startsWith('0x')||fromAddr.length!==42){toast('地址格式不正确','error');return;}
   var usdtAmount=(amount/10).toFixed(2);
   try{
-    var usdt=await api('/deposit',{method:'POST',body:JSON.stringify({amount:parseFloat(usdtAmount)})});
+    var usdt=await api('/deposit',{method:'POST',body:JSON.stringify({amount:parseFloat(usdtAmount),fromAddress:fromAddr})});
     _currentDepositOrderId=usdt.order.id;
     // Show payment modal
     document.getElementById('payCoins').textContent=amount+' 金币';
