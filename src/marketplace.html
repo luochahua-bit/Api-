@@ -358,6 +358,7 @@ textarea{min-height:60px;resize:vertical}
         <button class="btn btn-outline btn-sm" onclick="doWithdraw()" style="width:100%">申请提现</button>
       </div>
     </div>
+    <div id="pendingDeposits"></div>
     <div class="card">
       <h3 style="font-size:14px;margin-bottom:10px">📊 金币流水</h3>
       <div id="coinTransactions"></div>
@@ -545,6 +546,14 @@ function copyPayAmount(){
   navigator.clipboard.writeText(amt).then(function(){toast('金额已复制');}).catch(function(){
     var ta=document.createElement('textarea');ta.value=amt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('金额已复制');
   });
+}
+async function cancelMyDeposit(id){
+  if(!confirm('确定取消此充值订单？'))return;
+  try{
+    var r=await api('/deposits/'+id+'/cancel',{method:'PUT'});
+    toast(r.message||'订单已取消','success');
+    loadWallet();
+  }catch(e){toast(e.message,'error');}
 }
 var _currentDepositOrderId='';
 async function submitTxHash(){
@@ -1215,6 +1224,22 @@ async function loadWallet(){
           '<div style="font-size:11px;color:var(--text3)">'+fmtTime(w.createdAt)+' | '+esc(w.walletAddress||'')+'</div></div>'+
           '<div style="font-size:12px;font-weight:600;color:'+statusColor+'">'+statusText+'</div></div>';
       }).join('');}
+    }catch(e){}
+    // Load pending deposit orders
+    try{
+      var dp=await api('/deposits');
+      var dpEl=document.getElementById('pendingDeposits');
+      if(dpEl){
+        var pending=(dp.data||[]).filter(function(d){return d.status==='pending';});
+        if(!pending.length){dpEl.innerHTML='';}
+        else{dpEl.innerHTML='<div class="card" style="margin-bottom:12px"><h3 style="font-size:14px;margin-bottom:10px">⏳ 待处理充值订单</h3>'+
+          pending.map(function(d){
+            return'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
+              '<div><div style="font-size:13px">'+d.usdtAmount+' USDC → '+d.coins+' 币</div>'+
+              '<div style="font-size:11px;color:var(--text3)">'+fmtTime(d.createdAt)+'</div></div>'+
+              '<button class="btn btn-sm btn-outline" onclick="cancelMyDeposit(\''+d.id+'\')">取消</button></div>';
+          }).join('')+'</div>';}
+      }
     }catch(e){}
   }catch(e){toast(e.message,'error');}
 }

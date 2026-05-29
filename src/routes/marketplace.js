@@ -1250,6 +1250,16 @@ router.get('/deposits', userAuth, (req, res) => {
   res.json({ data: orders.slice(-50).reverse() });
 });
 
+// Cancel own pending deposit order
+router.put('/deposits/:id/cancel', userAuth, (req, res) => {
+  const order = store.getDepositOrder(req.params.id);
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.userId !== req.userId) return res.status(403).json({ error: { message: '无权操作' } });
+  if (order.status !== 'pending') return res.status(400).json({ error: { message: '只能取消待处理的订单' } });
+  store.updateDepositOrder(order.id, { status: 'cancelled', note: '用户取消' });
+  res.json({ success: true, message: '订单已取消' });
+});
+
 // Withdrawal fee tiers
 function calculateWithdrawalFee(coins, feeCredits) {
   let rate;
