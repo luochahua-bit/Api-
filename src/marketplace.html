@@ -463,6 +463,21 @@ textarea{min-height:60px;resize:vertical}
   </div>
 </div>
 
+<div id="walletModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('walletModal')">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeModal('walletModal')">&times;</button>
+    <div style="font-size:40px;margin-bottom:12px">💳</div>
+    <h3 style="margin-bottom:8px">充值确认</h3>
+    <div style="font-size:16px;font-weight:700;color:var(--primary);margin-bottom:16px" id="walletInputAmount">0 金币</div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px">你的 Arbitrum 钱包地址（0x 开头）</label>
+      <input type="text" id="walletInput" placeholder="0x..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:13px;outline:none;font-family:monospace">
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">用于验证充值来源，防止冒领</div>
+    </div>
+    <button class="btn btn-primary" onclick="confirmRecharge()" style="width:100%">确认并继续</button>
+  </div>
+</div>
+
 <div id="rotateKeyModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('rotateKeyModal')">
   <div class="modal" style="max-width:480px">
     <button class="modal-close" onclick="closeModal('rotateKeyModal')">&times;</button>
@@ -1216,11 +1231,19 @@ async function doRecharge(){
   var amount=parseInt(document.getElementById('rechargeAmount').value);
   if(!amount||amount<1){toast('请选择或输入充值金额','error');return;}
   if(!token){showAuthModal();return;}
-  // Ask for sender wallet address (anti-fraud)
-  var fromAddr=prompt('请输入你的 Arbitrum 钱包地址（0x 开头）：\n\n用于验证充值来源，防止冒领');
-  if(!fromAddr)return;
-  fromAddr=fromAddr.trim();
-  if(!fromAddr.startsWith('0x')||fromAddr.length!==42){toast('地址格式不正确','error');return;}
+  // Show wallet address input modal
+  document.getElementById('walletInputAmount').textContent=amount+' 金币（'+(amount/10)+' USDC）';
+  document.getElementById('walletInput').value='';
+  showModal('walletModal');
+}
+
+async function confirmRecharge(){
+  var amount=parseInt(document.getElementById('rechargeAmount').value);
+  if(!amount||amount<1){toast('请选择或输入充值金额','error');return;}
+  var fromAddr=document.getElementById('walletInput').value.trim();
+  if(!fromAddr){toast('请填写钱包地址','error');return;}
+  if(!fromAddr.startsWith('0x')||fromAddr.length!==42){toast('地址格式不正确，0x 开头 42 位','error');return;}
+  closeModal('walletModal');
   var usdtAmount=(amount/10).toFixed(2);
   try{
     var usdt=await api('/deposit',{method:'POST',body:JSON.stringify({amount:parseFloat(usdtAmount),fromAddress:fromAddr})});
