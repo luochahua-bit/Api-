@@ -88,10 +88,10 @@ app.use('/fixes', express.static(path.join(__dirname, 'fixes'), {
 app.get('/health', (req, res) => {
   const providers = providerManager.getProvidersInfo();
   const degraded = providers.some(p => (p.health?.consecutiveFailures || 0) >= 10);
-  // Only expose essential info, not full provider details
   const healthy = providers.filter(p => p.health?.healthy).length;
   const total = providers.length;
-  res.json({ status: degraded ? 'degraded' : 'ok', providers: { healthy, total } });
+  const userCount = store.getUsers ? store.getUsers().length : 0;
+  res.json({ status: degraded ? 'degraded' : 'ok', providers: { healthy, total }, users: userCount });
 });
 
 // Stats (public — logs already mask API keys)
@@ -177,7 +177,15 @@ app.use((err, req, res, next) => {
 // Only start server when running directly (not in Vercel serverless)
 if (!process.env.VERCEL) {
   // Try to restore database from cloud backup if local file missing
-  store.restoreFromCloud().catch(e => console.error('[Restore] Error:', e.message)).finally(() => {
+  const needsRestore = !require('fs').existsSync(require('./config').dbPath);
+  store.restoreFromCloud().then(restored => {
+    if (needsRestore) {
+      if (restored) console.log('[Startup] Database restored from cloud backup');
+      else console.warn('[Startup] No cloud backup available, starting with empty database');
+    }
+  }).catch(e => {
+    console.error('[Startup] Cloud restore failed:', e.message);
+  }).finally(() => {
   app.listen(config.port, () => {
     console.log('');
     console.log('========================================');
