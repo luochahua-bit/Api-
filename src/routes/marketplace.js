@@ -1203,7 +1203,7 @@ router.post('/deposit/verify', userAuth, async (req, res) => {
   // Verify transaction on blockchain
   const usdtPayment = require('../services/usdtPayment');
   try {
-    const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount);
+    const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount, 0.0001);
     if (result.verified) {
       // Anti-fraud: verify the sender is not the hot wallet itself
       if (result.from && result.from.toLowerCase() === WALLET_ADDRESS.toLowerCase()) {

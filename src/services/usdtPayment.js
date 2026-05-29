@@ -163,7 +163,7 @@ async function checkIncomingTransactions() {
 
 // ========== Transaction Verification ==========
 
-async function verifyTransaction(txHash, expectedAmount) {
+async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
   try {
     const params = {
       module: 'transaction',
@@ -200,7 +200,7 @@ async function verifyTransaction(txHash, expectedAmount) {
     const amount = parseInt(usdcTransfer.data, 16) / 1e6;
     const diff = Math.abs(amount - expectedAmount);
 
-    if (diff > 0.01) {
+    if (diff > tolerance) {
       return { verified: false, error: `金额不匹配：期望 ${expectedAmount} USDC，实际 ${amount} USDC` };
     }
 
