@@ -204,6 +204,9 @@ async function verifyTransaction(txHash, expectedAmount) {
       return { verified: false, error: `金额不匹配：期望 ${expectedAmount} USDC，实际 ${amount} USDC` };
     }
 
+    // Extract sender address from Transfer event topics (topics[1] = from)
+    const from = usdcTransfer.topics[1] ? '0x' + usdcTransfer.topics[1].slice(26) : '';
+
     // Check confirmations
     const latestBlock = await getLatestBlockNumber();
     const txBlock = parseInt(tx.blockNumber);
@@ -214,7 +217,7 @@ async function verifyTransaction(txHash, expectedAmount) {
       }
     }
 
-    return { verified: true, amount };
+    return { verified: true, amount, from };
   } catch (err) {
     return { verified: false, error: '验证出错: ' + err.message };
   }

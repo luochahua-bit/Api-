@@ -1159,7 +1159,7 @@ router.get('/coin/withdrawals', userAuth, (req, res) => {
 
 // ==================== USDC Deposit ====================
 
-const { createDepositOrder, checkDepositOrder, COINS_PER_USDC, MIN_DEPOSIT, WALLET_ADDRESS } = require('../services/usdtPayment');
+const { createDepositOrder, checkDepositOrder, COINS_PER_USDT, MIN_DEPOSIT, WALLET_ADDRESS } = require('../services/usdtPayment');
 
 // Create deposit order
 router.post('/deposit', userAuth, (req, res) => {
@@ -1205,6 +1205,10 @@ router.post('/deposit/verify', userAuth, async (req, res) => {
   try {
     const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount);
     if (result.verified) {
+      // Anti-fraud: verify the sender is not the hot wallet itself
+      if (result.from && result.from.toLowerCase() === WALLET_ADDRESS.toLowerCase()) {
+        return res.status(400).json({ error: { message: '此交易是系统内部转账，不能用于充值' } });
+      }
       store.updateDepositOrder(orderId, { status: 'completed', txHash, confirmedAt: Date.now() });
       store.addCoins(order.userId, order.coins, `USDC 充值 ${result.amount} USDC → ${order.coins} 币`);
       store.addProcessedTx(txHash);
