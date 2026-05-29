@@ -170,6 +170,9 @@ router.post('/auth/login', async (req, res) => {
     }
     // Record this IP as known
     store.addKnownIp(user.id, ip);
+    // Send login notification email (async, don't block login)
+    const { sendLoginNotifyEmail } = require('../services/email');
+    sendLoginNotifyEmail(user.email, user.username, ip).catch(() => {});
   }
 
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '30d' });

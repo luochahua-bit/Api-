@@ -152,7 +152,23 @@ async function sendFeedbackReplyEmail(userEmail, feedback) {
   return sendEmail(userEmail, `${SITE_NAME} - 您的反馈已回复`, html);
 }
 
+// ========== Login Notification ==========
+
+async function sendLoginNotifyEmail(toEmail, username, ip) {
+  const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  const content = `
+    <p style="font-size:14px;color:#334155;margin:0 0 16px">您的账号 <strong>${username}</strong> 在新设备上登录成功。</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px">
+      <p style="font-size:13px;color:#334155;margin:0 0 8px"><strong>登录时间：</strong>${now}</p>
+      <p style="font-size:13px;color:#334155;margin:0"><strong>IP 地址：</strong>${ip}</p>
+    </div>
+    <p style="font-size:12px;color:#ef4444;margin:0">如果这不是您本人操作，请立即修改密码。</p>
+  `;
+  const html = baseLayout(content, { title: '新设备登录通知', buttonText: `访问 ${SITE_NAME}`, buttonUrl: SITE_URL });
+  return sendEmail(toEmail, `${SITE_NAME} - 新设备登录通知`, html);
+}
+
 module.exports = {
   generateCode, sendEmail,
-  sendVerificationEmail, sendFeedbackNotifyEmail, sendFeedbackReplyEmail,
+  sendVerificationEmail, sendFeedbackNotifyEmail, sendFeedbackReplyEmail, sendLoginNotifyEmail,
 };
