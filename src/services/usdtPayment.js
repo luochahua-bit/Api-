@@ -13,7 +13,7 @@ const PRIVATE_KEY = process.env.USDT_WALLET_PRIVATE_KEY || '';
 const COINS_PER_USDT = parseInt(process.env.USDT_COINS_PER_USDT) || 10;
 const MIN_DEPOSIT = parseFloat(process.env.USDT_MIN_DEPOSIT) || 1;
 const MAX_WITHDRAW = parseFloat(process.env.USDT_MAX_WITHDRAW) || 50;
-const ARBISCAN_API = 'https://api.arbiscan.io/api';
+const ARBISCAN_API = 'https://api.etherscan.io/v2/api';
 const ARBISCAN_KEY = process.env.ARBISCAN_API_KEY || '';
 const USDC_CONTRACT = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'; // USDC on Arbitrum One
 const REQUIRED_CONFIRMATIONS = 3; // Arbitrum: ~0.25s per block, 3 confirmations ≈ 1 second
@@ -65,7 +65,7 @@ function checkDepositOrder(orderId) {
 
 async function getLatestBlockNumber() {
   try {
-    const params = { module: 'proxy', action: 'eth_blockNumber' };
+    const params = { module: 'proxy', action: 'eth_blockNumber', chainid: 42161 };
     if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
     const resp = await axios.get(ARBISCAN_API, { params, timeout: 10000 });
     return parseInt(resp.data?.result, 16) || 0;
@@ -84,6 +84,7 @@ async function checkIncomingTransactions() {
       action: 'tokentx',
       address: WALLET_ADDRESS,
       contractaddress: USDC_CONTRACT,
+      chainid: 42161, // Arbitrum One
       page: 1,
       offset: 20,
       sort: 'desc',
@@ -168,6 +169,7 @@ async function verifyTransaction(txHash, expectedAmount) {
       module: 'transaction',
       action: 'gettxinfo',
       txhash: txHash,
+      chainid: 42161,
     };
     if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
 
