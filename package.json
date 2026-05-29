@@ -1,6 +1,6 @@
 {
   "name": "llm-api-relay",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "LLM API Relay Station - OpenAI-compatible gateway with multi-provider load balancing",
   "main": "src/index.js",
   "engines": {

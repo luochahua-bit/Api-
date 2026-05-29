@@ -169,7 +169,7 @@ if (!process.env.VERCEL) {
   app.listen(config.port, () => {
     console.log('');
     console.log('========================================');
-    console.log('  LLM API Relay Station v2.1');
+    console.log('  LLM API Relay Station v2.2');
     console.log('========================================');
     console.log(`  Port: ${config.port}`);
     console.log(`  Dashboard: http://localhost:${config.port}`);
