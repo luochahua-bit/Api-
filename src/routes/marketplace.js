@@ -160,7 +160,10 @@ router.put('/auth/profile', userAuth, async (req, res) => {
     if (!emailCheck.valid) return res.status(400).json({ error: { message: emailCheck.reason } });
     changes.email = normalizeEmail(email);
   }
-  if (password) changes.password = await bcrypt.hash(password, 10);
+  if (password) {
+    changes.password = await bcrypt.hash(password, 10);
+    changes.passwordChangedAt = Date.now();
+  }
   if (nickname !== undefined) {
     const n = nickname.trim();
     if (n.length < 2 || n.length > 20) return res.status(400).json({ error: { message: '昵称 2-20 个字符' } });

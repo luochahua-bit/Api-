@@ -25,6 +25,12 @@ module.exports = function userAuth(req, res, next) {
         error: { message: 'User not found or disabled', type: 'auth_error' },
       });
     }
+    // Reject tokens issued before password change
+    if (user.passwordChangedAt && decoded.iat < Math.floor(user.passwordChangedAt / 1000)) {
+      return res.status(401).json({
+        error: { message: 'Token expired, please login again', type: 'auth_error' },
+      });
+    }
     req.user = user;
     req.userId = user.id;
     next();
