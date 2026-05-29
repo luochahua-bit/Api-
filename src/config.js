@@ -29,7 +29,7 @@ function parseProviders() {
 }
 
 module.exports = {
-  port: parseInt(process.env.PORT) || 3000,
+  port: process.env.PORT !== undefined ? parseInt(process.env.PORT) : 3000,
   apiKeys: (process.env.API_KEYS || '').split(',').map(k => k.trim()).filter(Boolean),
   adminPassword: process.env.ADMIN_PASSWORD,
   providers: parseProviders(),
