@@ -162,6 +162,23 @@ router.get('/withdrawals', (req, res) => {
   res.json({ data: withdrawals });
 });
 
+// Get/set auto-approve setting
+router.get('/withdrawals/settings', (req, res) => {
+  const settings = store.getWithdrawalSettings ? store.getWithdrawalSettings() : { autoApprove: false, autoMaxUsdt: 50, autoDailyMaxUsdt: 200 };
+  res.json(settings);
+});
+
+router.put('/withdrawals/settings', (req, res) => {
+  const { autoApprove, autoMaxUsdt, autoDailyMaxUsdt } = req.body;
+  const settings = {
+    autoApprove: !!autoApprove,
+    autoMaxUsdt: parseFloat(autoMaxUsdt) || 50,
+    autoDailyMaxUsdt: parseFloat(autoDailyMaxUsdt) || 200,
+  };
+  if (store.updateWithdrawalSettings) store.updateWithdrawalSettings(settings);
+  res.json({ success: true, settings });
+});
+
 // Approve withdrawal (manual USDT transfer required)
 router.put('/withdrawals/:id/approve', (req, res) => {
   const { txHash, note } = req.body;

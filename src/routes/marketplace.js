@@ -1098,9 +1098,26 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
     note: '',
   };
   store.addWithdrawal(withdrawal);
+
+  // Auto-approve check
+  const wdSettings = store.getWithdrawalSettings ? store.getWithdrawalSettings() : { autoApprove: false };
+  let autoApproved = false;
+  if (wdSettings.autoApprove && usdtPayout <= (wdSettings.autoMaxUsdt || 50)) {
+    // Check daily limit
+    const todayStart = new Date().setHours(0, 0, 0, 0);
+    const todayApproved = (store.getWithdrawals ? store.getWithdrawals() : [])
+      .filter(w => w.status === 'completed' && w.processedAt > todayStart)
+      .reduce((sum, w) => sum + (w.usdtAmount || 0), 0);
+    if (todayApproved + usdtPayout <= (wdSettings.autoDailyMaxUsdt || 200)) {
+      store.updateWithdrawal(withdrawal.id, { status: 'completed', processedAt: Date.now(), note: '自动审批' });
+      autoApproved = true;
+    }
+  }
+
+  const statusMsg = autoApproved ? '已自动审批通过' : '已提交，等待管理员审批';
   res.json({
     success: true,
-    message: `提现申请已提交。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${feeInfo.payout} 币 = ${usdtPayout} USDT`,
+    message: `提现申请${statusMsg}。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${feeInfo.payout} 币 = ${usdtPayout} USDT`,
     fee: feeInfo,
     withdrawal,
   });

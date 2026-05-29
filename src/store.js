@@ -695,6 +695,19 @@ class Store {
     return true;
   }
 
+  // Withdrawal settings
+  getWithdrawalSettings() {
+    if (!this.state.withdrawalSettings) {
+      this.state.withdrawalSettings = { autoApprove: false, autoMaxUsdt: 50, autoDailyMaxUsdt: 200 };
+    }
+    return this.state.withdrawalSettings;
+  }
+
+  updateWithdrawalSettings(settings) {
+    this.state.withdrawalSettings = settings;
+    this.save();
+  }
+
   // Coin transactions log
   getCoinTransactions(userId) {
     if (userId) return this.state.coinTransactions.filter(t => t.userId === userId);
