@@ -115,7 +115,7 @@ class Store {
       const demoSeller = {
         id: genId('usr'),
         username: 'demo_seller',
-        password: bcrypt.hashSync('demo123', 10),
+        password: bcrypt.hashSync('06b5186f3dbe7e79d585ea82', 10),
         email: 'demo@example.com',
         role: 'seller',
         coins: 500,
@@ -136,7 +136,7 @@ class Store {
       const demoBuyer = {
         id: genId('usr'),
         username: 'demo_buyer',
-        password: bcrypt.hashSync('demo123', 10),
+        password: bcrypt.hashSync('06b5186f3dbe7e79d585ea82', 10),
         email: 'buyer@example.com',
         role: 'buyer',
         coins: 200,

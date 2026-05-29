@@ -14,9 +14,8 @@ const adminAuth = require('../middleware/adminAuth');
 const { JWT_SECRET } = require('../middleware/userAuth');
 const {
   genId, encryptKey, decryptKey, testProviderKey, verifyModelsExist, verifyModelIdentity,
-  processMarketRequest, calculatePrice, calculateModelPrice,
-  freezeFunds, releaseFunds, refundFunds,
-  topUpBalance, processPayment, calculateFeeWithCredits,
+  processMarketRequest, calculatePrice,
+  topUpBalance, processPayment,
   detectSourceLevel,
 } = require('../services/marketplace');
 
