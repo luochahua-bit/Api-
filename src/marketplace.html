@@ -438,13 +438,12 @@ textarea{min-height:60px;resize:vertical}
     <h3 style="margin-bottom:8px" id="payTitle">充值</h3>
     <div style="font-size:24px;font-weight:800;color:var(--primary);margin-bottom:4px" id="payCoins">0 金币</div>
     <div style="background:var(--bg);border:1px dashed var(--border);border-radius:10px;padding:16px;margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">请转以下精确金额（必须完全一致）</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">请转账金额</div>
       <div style="display:flex;align-items:center;gap:8px;justify-content:center">
-        <div id="payUsdt" style="font-size:20px;font-weight:800;color:var(--warning);user-select:all;cursor:text">0</div>
+        <div id="payUsdt" style="font-size:24px;font-weight:800;color:var(--primary);user-select:all;cursor:text">0</div>
         <span style="font-size:14px;color:var(--text2)">USDC</span>
         <button class="btn btn-sm btn-outline" onclick="copyPayAmount()" style="font-size:11px">📋 复制</button>
       </div>
-      <div style="font-size:11px;color:var(--error);margin-top:8px">⚠️ 金额必须精确匹配，否则不会到账</div>
     </div>
     <div style="background:var(--bg);border:1px dashed var(--border);border-radius:10px;padding:16px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">请转账到以下 Arbitrum 地址</div>

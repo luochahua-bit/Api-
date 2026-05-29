@@ -42,16 +42,15 @@ function createDepositOrder(userId, usdtAmount, fromAddress) {
     }
   }
 
-  // Generate unique amount with random decimals to distinguish orders
-  const uniqueAmount = (usdtAmount + Math.random() * 0.01 + 0.001).toFixed(6);
+  // Use exact round amount (wallet address binding prevents cross-user confusion)
   const coins = Math.floor(usdtAmount * COINS_PER_USDT);
   const orderId = 'dep_' + crypto.randomBytes(8).toString('hex');
 
   const order = {
     id: orderId,
     userId,
-    fromAddress: fromAddress || '', // sender's wallet address
-    usdtAmount: parseFloat(uniqueAmount),
+    fromAddress: fromAddress || '',
+    usdtAmount: usdtAmount,
     coins,
     address: WALLET_ADDRESS,
     status: 'pending',
