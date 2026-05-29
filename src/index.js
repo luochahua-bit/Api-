@@ -84,14 +84,17 @@ app.use('/fixes', express.static(path.join(__dirname, 'fixes'), {
   }
 }));
 
-// Health check
+// Health check (public, for monitoring)
 app.get('/health', (req, res) => {
   const providers = providerManager.getProvidersInfo();
   const degraded = providers.some(p => (p.health?.consecutiveFailures || 0) >= 10);
-  res.json({ status: degraded ? 'degraded' : 'ok', providers });
+  // Only expose essential info, not full provider details
+  const healthy = providers.filter(p => p.health?.healthy).length;
+  const total = providers.length;
+  res.json({ status: degraded ? 'degraded' : 'ok', providers: { healthy, total } });
 });
 
-// Public stats for dashboard
+// Stats (public — logs already mask API keys)
 app.get('/api/stats', (req, res) => {
   const stats = store.getStats();
   const providers = providerManager.getProvidersInfo();
