@@ -9,26 +9,39 @@ const { isFreeKey, isFreeModel, getFreeModelsForResponse, deductFreeCoins, TOKEN
 
 const router = Router();
 
+// Simple in-memory cache for /v1/models
+let modelsCache = { free: null, paid: null, ts: 0 };
+const MODELS_CACHE_TTL = 60000; // 60 seconds
+
 router.get('/models', (req, res) => {
-  const providers = providerManager.getProvidersInfo();
+  const now = Date.now();
 
   // Free keys only see free models
   if (req.keyTier === 'free') {
-    return res.json({ object: 'list', data: getFreeModelsForResponse() });
+    if (!modelsCache.free || now - modelsCache.ts > MODELS_CACHE_TTL) {
+      modelsCache.free = { object: 'list', data: getFreeModelsForResponse() };
+      modelsCache.ts = now;
+    }
+    return res.json(modelsCache.free);
   }
 
-  res.json({
-    object: 'list',
-    data: MODELS.map(m => ({
-      id: m.id,
-      object: 'model',
-      created: Math.floor(Date.now() / 1000),
-      owned_by: m.provider,
-      _free: m.free || false,
-      _provider: m.provider,
-    })),
-    _providers: providers,
-  });
+  if (!modelsCache.paid || now - modelsCache.ts > MODELS_CACHE_TTL) {
+    const providers = providerManager.getProvidersInfo();
+    modelsCache.paid = {
+      object: 'list',
+      data: MODELS.map(m => ({
+        id: m.id,
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: m.provider,
+        _free: m.free || false,
+        _provider: m.provider,
+      })),
+      _providers: providers,
+    };
+    modelsCache.ts = now;
+  }
+  res.json(modelsCache.paid);
 });
 
 router.post('/chat/completions', async (req, res) => {
