@@ -617,6 +617,7 @@
               <div style="display:flex;gap:6px;margin-bottom:12px">
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminProviders')">提供商</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-withdrawals')">提现管理</button>
                 <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出</button>
               </div>
               <div id="adminProviders">
@@ -953,7 +954,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       const el = document.getElementById('withdrawalsList');
       if (!adminToken) { el.innerHTML = '<div style="text-align:center;padding:20px">请先登录管理员账户</div>'; return; }
       try {
-        const resp = await fetch(API_BASE + '/api/market/admin/withdrawals', { headers: { 'Authorization': 'Bearer ' + adminToken } });
+        const resp = await fetch(API_BASE + '/api/admin/withdrawals', { headers: { 'Authorization': 'Bearer ' + adminToken } });
         const data = await resp.json();
         if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
         const withdrawals = data.data || [];
@@ -1005,9 +1006,10 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     function showAdminSection(id) {
-      ['adminProviders', 'adminKeys'].forEach(s => {
+      ['adminProviders', 'adminKeys', 'tab-withdrawals'].forEach(s => {
         document.getElementById(s).style.display = s === id ? '' : 'none';
       });
+      if (id === 'tab-withdrawals') loadWithdrawals();
     }
 
     async function adminFetch(path, opts = {}) {
