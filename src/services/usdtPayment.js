@@ -209,8 +209,10 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
 
     const receipt = resp.data.result;
 
-    // Check if transaction was successful
-    if (receipt.status !== '0x1') {
+    // Check if transaction was successful (handle different status formats)
+    const status = String(receipt.status || '').toLowerCase();
+    if (status !== '0x1' && status !== '1' && status !== 'true') {
+      console.error('[USDC] Transaction failed, status:', receipt.status);
       return { verified: false, error: '此交易失败' };
     }
 
@@ -236,6 +238,7 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
 
     // Extract sender address from Transfer event topics (topics[1] = from, padded to 32 bytes)
     const from = usdcTransfer.topics[1] ? '0x' + usdcTransfer.topics[1].slice(26) : '';
+    console.log(`[USDC] verifyTransaction: amount=${amount}, from=${from}, txHash=${txHash.slice(0, 16)}...`);
 
     // Check confirmations
     const latestBlock = await getLatestBlockNumber();
