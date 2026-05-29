@@ -642,50 +642,72 @@ class Store {
     }
   }
 
-  // Freeze coins as transaction deposit
+  // Freeze coins as transaction deposit (concurrency-safe)
   freezeCoins(userId, amount, description) {
-    const user = this.getUserById(userId);
-    if (!user || (user.coins || 0) < amount) return false;
-    user.coins -= amount;
-    user.frozenCoins = (user.frozenCoins || 0) + amount;
-    this.addCoinTransaction(userId, 'freeze', -amount, description);
-    this.save();
-    return true;
+    if (this._locks.has(userId)) return false;
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user || (user.coins || 0) < amount) return false;
+      user.coins -= amount;
+      user.frozenCoins = (user.frozenCoins || 0) + amount;
+      this.addCoinTransaction(userId, 'freeze', -amount, description);
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(userId);
+    }
   }
 
-  // Release frozen coins to another user (after transaction complete)
+  // Release frozen coins to another user (after transaction complete) (concurrency-safe)
   releaseCoins(fromUserId, toUserId, amount, fee, description) {
     if (amount <= 0) return false;
-    const fromUser = this.getUserById(fromUserId);
-    const toUser = this.getUserById(toUserId);
-    if (!fromUser || !toUser) return false;
-    if ((fromUser.frozenCoins || 0) < amount) return false;
-
-    fromUser.frozenCoins -= amount;
-    const sellerGets = amount - fee;
-    toUser.coins = (toUser.coins || 0) + sellerGets;
-    toUser.totalCoinEarnings = (toUser.totalCoinEarnings || 0) + sellerGets;
-    fromUser.totalCoinSpending = (fromUser.totalCoinSpending || 0) + amount;
-
-    this.addCoinTransaction(fromUserId, 'purchase', -amount, description + ' (买家扣款)');
-    this.addCoinTransaction(toUserId, 'earning', sellerGets, description + ' (卖家收款, 服务费' + fee + '金币)');
-    if (fee > 0) {
-      this.addCoinTransaction('platform', 'fee', fee, description + ' (平台服务费)');
+    // Lock both users (always lock in same order to prevent deadlock)
+    const ids = [fromUserId, toUserId].sort();
+    for (const id of ids) {
+      if (this._locks.has(id)) return false;
+      this._locks.add(id);
     }
-    this.save();
-    return true;
+    try {
+      const fromUser = this.getUserById(fromUserId);
+      const toUser = this.getUserById(toUserId);
+      if (!fromUser || !toUser) return false;
+      if ((fromUser.frozenCoins || 0) < amount) return false;
+
+      fromUser.frozenCoins -= amount;
+      const sellerGets = amount - fee;
+      toUser.coins = (toUser.coins || 0) + sellerGets;
+      toUser.totalCoinEarnings = (toUser.totalCoinEarnings || 0) + sellerGets;
+      fromUser.totalCoinSpending = (fromUser.totalCoinSpending || 0) + amount;
+
+      this.addCoinTransaction(fromUserId, 'purchase', -amount, description + ' (买家扣款)');
+      this.addCoinTransaction(toUserId, 'earning', sellerGets, description + ' (卖家收款, 服务费' + fee + '金币)');
+      if (fee > 0) {
+        this.addCoinTransaction('platform', 'fee', fee, description + ' (平台服务费)');
+      }
+      this.save();
+      return true;
+    } finally {
+      for (const id of ids) this._locks.delete(id);
+    }
   }
 
-  // Refund frozen coins back to buyer
+  // Refund frozen coins back to buyer (concurrency-safe)
   refundCoins(userId, amount, description) {
-    const user = this.getUserById(userId);
-    if (!user) return false;
-    if ((user.frozenCoins || 0) < amount) return false;
-    user.frozenCoins -= amount;
-    user.coins = (user.coins || 0) + amount;
-    this.addCoinTransaction(userId, 'refund', amount, description);
-    this.save();
-    return true;
+    if (this._locks.has(userId)) return false;
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user) return false;
+      if ((user.frozenCoins || 0) < amount) return false;
+      user.frozenCoins -= amount;
+      user.coins = (user.coins || 0) + amount;
+      this.addCoinTransaction(userId, 'refund', amount, description);
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(userId);
+    }
   }
 
   // Redemption codes

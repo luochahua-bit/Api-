@@ -23,6 +23,9 @@ let monitorInterval = null;
 // ========== Deposit Orders ==========
 
 function createDepositOrder(userId, usdtAmount, fromAddress) {
+  if (!fromAddress || !/^0x[0-9a-fA-F]{40}$/.test(fromAddress)) {
+    return { success: false, error: '请填写有效的 Arbitrum 钱包地址（0x 开头，42 位）' };
+  }
   if (usdtAmount < MIN_DEPOSIT) {
     return { success: false, error: `最低充值 ${MIN_DEPOSIT} USDC` };
   }
