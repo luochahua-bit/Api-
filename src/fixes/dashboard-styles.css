@@ -158,7 +158,7 @@
     gap: 8px;
   }
   .header h1 { font-size: 13px !important; }
-  .header-left { gap: 8px; }
+  .header-left { gap: 8px; flex-wrap: wrap; }
   .logo { padding: 6px 10px !important; font-size: 12px !important; }
   .main { padding: 12px !important; }
   .hero {
@@ -187,15 +187,26 @@
     padding: 8px 12px !important;
     font-size: 12px !important;
     min-height: 40px;
+    white-space: nowrap;
   }
   .providers-grid {
     grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .provider-card {
+    padding: 10px 12px !important;
+  }
+  .provider-url {
+    max-width: 200px !important;
+    font-size: 9px !important;
   }
   .models-grid {
-    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
   }
   .section { border-radius: 12px !important; }
-  .section-body { padding: 12px !important; }
+  .section-body { padding: 12px !important; overflow-x: auto !important; }
   .section-header { padding: 10px 14px !important; }
   .playground { grid-template-columns: 1fr !important; }
   /* Touch targets */
@@ -206,6 +217,8 @@
   .search-bar input {
     font-size: 16px; /* prevents iOS zoom */
   }
+  /* Tables scroll horizontally */
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* ===== Tablet: 768px ===== */
