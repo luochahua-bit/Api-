@@ -125,6 +125,7 @@ textarea{min-height:60px;resize:vertical}
   <div style="width:40px;height:40px;border:3px solid rgba(99,102,241,.2);border-top-color:#6366f1;border-radius:50%;animation:spin .8s linear infinite"></div>
   <div style="font-size:13px;color:#64748b">正在加载...</div>
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  <script>setTimeout(function(){var ld=document.getElementById('app-loading');if(ld){ld.style.opacity='0';setTimeout(function(){ld.remove()},400)}},5000)</script>
 </div>
 <header>
 <div class="container">

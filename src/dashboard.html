@@ -391,6 +391,7 @@
   <div style="width:40px;height:40px;border:3px solid rgba(59,130,246,.2);border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite"></div>
   <div style="font-size:13px;color:#8b9ab8">正在加载控制面板...</div>
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  <script>setTimeout(function(){var ld=document.getElementById('app-loading');if(ld){ld.style.opacity='0';setTimeout(function(){ld.remove()},400)}},5000)</script>
 </div>
   <div class="header">
     <div class="header-left">
