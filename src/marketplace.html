@@ -522,18 +522,36 @@ async function submitTxHash(){
   var txHash=document.getElementById('payTxHash').value.trim();
   if(!txHash){toast('请粘贴交易哈希','error');return;}
   if(!_currentDepositOrderId){toast('订单号丢失，请重新充值','error');return;}
-  try{
-    var r=await api('/deposit/verify',{method:'POST',body:JSON.stringify({orderId:_currentDepositOrderId,txHash:txHash})});
-    document.getElementById('payStatus').textContent=r.message||'验证完成';
-    document.getElementById('payStatus').style.color=r.success?'var(--success)':'var(--warning)';
-    if(r.success){
-      toast(r.message,'success');
-      loadWallet();
+  var statusEl=document.getElementById('payStatus');
+  var btn=event.target;
+  btn.disabled=true;btn.textContent='验证中...';
+  statusEl.textContent='正在验证交易...';statusEl.style.color='var(--text3)';
+
+  // Poll every 5 seconds for up to 2 minutes
+  for(var i=0;i<24;i++){
+    try{
+      var r=await api('/deposit/verify',{method:'POST',body:JSON.stringify({orderId:_currentDepositOrderId,txHash:txHash})});
+      if(r.success&&r.message.includes('到账')){
+        statusEl.textContent='✅ '+r.message;
+        statusEl.style.color='var(--success)';
+        toast(r.message,'success');
+        loadWallet();
+        btn.disabled=false;btn.textContent='提交';
+        return;
+      }
+      statusEl.textContent='等待区块确认... ('+((i+1)*5)+'秒)';
+      statusEl.style.color='var(--warning)';
+    }catch(e){
+      statusEl.textContent=e.message;
+      statusEl.style.color='var(--error)';
+      btn.disabled=false;btn.textContent='提交';
+      return;
     }
-  }catch(e){
-    document.getElementById('payStatus').textContent=e.message;
-    document.getElementById('payStatus').style.color='var(--error)';
+    if(i<23) await new Promise(function(ok){setTimeout(ok,5000)});
   }
+  statusEl.textContent='验证超时，系统会自动检测到账';
+  statusEl.style.color='var(--warning)';
+  btn.disabled=false;btn.textContent='提交';
 }
 
 function onProviderSelect(url){
