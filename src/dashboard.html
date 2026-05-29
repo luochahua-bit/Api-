@@ -617,7 +617,8 @@
               <div style="display:flex;gap:6px;margin-bottom:12px">
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminProviders')">提供商</button>
                 <button class="btn btn-secondary btn-sm" onclick="showAdminSection('adminKeys')">API 密钥</button>
-                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-withdrawals')">提现管理</button>
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-users')">用户</button>
+                <button class="btn btn-secondary btn-sm" onclick="showAdminSection('tab-withdrawals')">提现</button>
                 <button class="btn btn-danger btn-sm" onclick="adminLogout()" style="margin-left:auto">退出</button>
               </div>
               <div id="adminProviders">
@@ -633,6 +634,10 @@
                   <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ 创建密钥</button>
                 </div>
                 <div id="adminKeyList"></div>
+              </div>
+              <div id="tab-users" style="display:none">
+                <h4 style="font-size:13px;margin-bottom:10px">用户管理</h4>
+                <div id="userList" style="font-size:13px;color:var(--text-secondary)">加载中...</div>
               </div>
               <div id="tab-withdrawals" style="display:none">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -1004,10 +1009,46 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     function showAdminSection(id) {
-      ['adminProviders', 'adminKeys', 'tab-withdrawals'].forEach(s => {
+      ['adminProviders', 'adminKeys', 'tab-users', 'tab-withdrawals'].forEach(s => {
         document.getElementById(s).style.display = s === id ? '' : 'none';
       });
       if (id === 'tab-withdrawals') loadWithdrawals();
+      if (id === 'tab-users') loadUsers();
+    }
+
+    async function loadUsers() {
+      const el = document.getElementById('userList');
+      if (!adminToken) { el.innerHTML = '<div style="text-align:center;padding:20px">请先登录管理员</div>'; return; }
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/users', { headers: { 'Authorization': 'Bearer ' + adminToken } });
+        const data = await resp.json();
+        if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
+        const users = data.data || [];
+        if (!users.length) { el.innerHTML = '<div style="text-align:center;padding:20px">暂无用户</div>'; return; }
+        el.innerHTML = users.map(u => {
+          const statusColor = u.enabled ? 'var(--success)' : 'var(--error)';
+          const statusText = u.enabled ? '正常' : '已禁用';
+          const btnText = u.enabled ? '禁用' : '启用';
+          const btnClass = u.enabled ? 'btn-danger' : 'btn-primary';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-secondary)">' +
+            '<div><div style="font-size:13px;font-weight:600">' + _esc(u.username) + ' <span style="font-size:11px;color:' + statusColor + '">(' + statusText + ')</span></div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + _esc(u.email) + ' | 金币:' + u.coins + ' 免费:' + u.freeCoins + '</div></div>' +
+            '<button class="btn btn-sm ' + btnClass + '" onclick="toggleUser(\'' + u.id + '\',\'' + _esc(u.username) + '\')">' + btnText + '</button></div>';
+        }).join('');
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+    }
+
+    async function toggleUser(id, name) {
+      if (!confirm('确定要切换用户 ' + name + ' 的状态吗？')) return;
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/users/' + id + '/toggle', {
+          method: 'PUT', headers: { 'Authorization': 'Bearer ' + adminToken },
+        });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error.message, 'error'); return; }
+        showToast(data.message, 'success');
+        loadUsers();
+      } catch (e) { showToast('操作失败: ' + e.message, 'error'); }
     }
 
     async function adminFetch(path, opts = {}) {

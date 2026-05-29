@@ -152,6 +152,31 @@ router.get('/stats', (req, res) => {
   });
 });
 
+// ========== User Management ==========
+
+// List all users (sanitized)
+router.get('/users', (req, res) => {
+  const users = store.getUsers().map(u => ({
+    id: u.id,
+    username: u.username,
+    email: u.email ? u.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : '',
+    enabled: u.enabled,
+    coins: u.coins || 0,
+    freeCoins: u.freeCoins || 0,
+    createdAt: u.createdAt,
+  }));
+  res.json({ data: users });
+});
+
+// Enable/disable user
+router.put('/users/:id/toggle', (req, res) => {
+  const user = store.getUserById(req.params.id);
+  if (!user) return res.status(404).json({ error: { message: '用户不存在' } });
+  const newEnabled = !user.enabled;
+  store.updateUser(user.id, { enabled: newEnabled });
+  res.json({ success: true, message: `用户 ${user.username} 已${newEnabled ? '启用' : '禁用'}` });
+});
+
 // ========== Withdrawal Management ==========
 
 // Reconciliation
