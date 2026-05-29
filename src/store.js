@@ -708,6 +708,52 @@ class Store {
     this.save();
   }
 
+  // ========== Fund Reconciliation ==========
+  reconcileCoins() {
+    const txns = this.state.coinTransactions || [];
+    const users = this.state.users || [];
+
+    // Sum all coin inflows (positive amounts)
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    for (const tx of txns) {
+      if (tx.coins > 0) totalInflow += tx.coins;
+      else totalOutflow += Math.abs(tx.coins);
+    }
+
+    // Sum current user balances
+    let totalUserCoins = 0;
+    let totalUserFreeCoins = 0;
+    let totalUserFrozenCoins = 0;
+    for (const u of users) {
+      totalUserCoins += (u.coins || 0);
+      totalUserFreeCoins += (u.freeCoins || 0);
+      totalUserFrozenCoins += (u.frozenCoins || 0);
+    }
+
+    const totalBalance = totalUserCoins + totalUserFreeCoins + totalUserFrozenCoins;
+    const expected = totalInflow - totalOutflow;
+    const discrepancy = Math.abs(totalBalance - expected);
+
+    const result = {
+      totalInflow,
+      totalOutflow,
+      totalBalance,
+      expected,
+      discrepancy,
+      balanced: discrepancy < 1, // allow rounding
+      userCount: users.length,
+      transactionCount: txns.length,
+      timestamp: Date.now(),
+    };
+
+    if (!result.balanced) {
+      console.warn('[RECONCILIATION] MISMATCH DETECTED!', JSON.stringify(result));
+    }
+
+    return result;
+  }
+
   // Coin transactions log
   getCoinTransactions(userId) {
     if (userId) return this.state.coinTransactions.filter(t => t.userId === userId);
@@ -715,9 +761,13 @@ class Store {
   }
 
   addCoinTransaction(userId, type, coins, description) {
+    // Snapshot user balance at time of transaction for audit trail
+    const user = userId !== 'platform' ? this.getUserById(userId) : null;
+    const balanceAfter = user ? { coins: user.coins || 0, freeCoins: user.freeCoins || 0, frozenCoins: user.frozenCoins || 0 } : null;
     this.state.coinTransactions.push({
       id: 'ctx_' + crypto.randomUUID(),
       userId, type, coins, description,
+      balanceAfter,
       createdAt: Date.now(),
     });
     // Keep last 5000 records

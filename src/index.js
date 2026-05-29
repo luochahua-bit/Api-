@@ -215,6 +215,20 @@ if (!process.env.VERCEL) {
     setInterval(() => {
       try { store.cleanExpiredCodes(); } catch (e) { /* ignore */ }
     }, 60 * 60 * 1000);
+
+    // Fund reconciliation check every hour
+    const recon = store.reconcileCoins();
+    if (!recon.balanced) {
+      console.error('[FATAL] Fund reconciliation mismatch on startup!', JSON.stringify(recon));
+    } else {
+      console.log(`[Reconcile] OK — ${recon.userCount} users, ${recon.transactionCount} txns, balance: ${recon.totalBalance}`);
+    }
+    setInterval(() => {
+      try {
+        const r = store.reconcileCoins();
+        if (!r.balanced) console.warn('[Reconcile] MISMATCH!', JSON.stringify(r));
+      } catch (e) { /* ignore */ }
+    }, 60 * 60 * 1000);
   });
 }
 

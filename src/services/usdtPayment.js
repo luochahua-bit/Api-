@@ -144,6 +144,10 @@ async function checkIncomingTransactions() {
         store.addProcessedTx(txHash);
 
         console.log(`[USDT] Deposit confirmed: ${amount} USDT → ${matchedOrder.coins} coins for user ${matchedOrder.userId}`);
+      } else if (!store.isDepositTxProcessed(txHash)) {
+        // USDT received but no matching order — alert!
+        console.warn(`[USDT] ALERT: Unmatched deposit! ${amount} USDT from ${tx.from}, txHash: ${txHash}. Manual review required.`);
+        store.addProcessedTx(txHash); // prevent repeated alerts
       }
     }
 

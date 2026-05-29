@@ -154,6 +154,12 @@ router.get('/stats', (req, res) => {
 
 // ========== Withdrawal Management ==========
 
+// Reconciliation
+router.get('/reconcile', (req, res) => {
+  const result = store.reconcileCoins ? store.reconcileCoins() : { error: 'Not available' };
+  res.json(result);
+});
+
 // List all withdrawals
 router.get('/withdrawals', (req, res) => {
   const status = req.query.status; // optional filter: pending, completed, rejected
