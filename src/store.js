@@ -447,6 +447,7 @@ class Store {
     if (this.state.users.find(u => u.username === user.username || u.email === user.email)) return false;
     this.state.users.push(user);
     this.save();
+    this._triggerCoinBackup(); // immediate backup on user registration
     return true;
   }
 
@@ -756,6 +757,7 @@ class Store {
   addWithdrawal(withdrawal) {
     this.state.withdrawals.push(withdrawal);
     this.save();
+    this._triggerCoinBackup(); // immediate backup on withdrawal
     return true;
   }
 
@@ -999,6 +1001,7 @@ class Store {
   addDepositOrder(order) {
     this.state.depositOrders.push(order);
     this.save();
+    this._triggerCoinBackup(); // immediate backup on deposit order
   }
 
   getDepositOrder(id) {
