@@ -9,6 +9,7 @@ const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 class Store {
   constructor() {
+    this._locks = new Set(); // Per-user operation locks for concurrency safety
     this.state = {
       providers: [],
       apiKeys: [],
@@ -586,25 +587,37 @@ class Store {
 
   // ========== Coin System ==========
 
-  // Add coins to user balance
+  // Add coins to user balance (concurrency-safe)
   /** Deducts coins: freeCoins first, then coins. @returns {{ deducted: number, remaining: number }} */
   addCoins(userId, amount, description) {
-    const user = this.getUserById(userId);
-    if (!user) return false;
-    user.coins = (user.coins || 0) + amount;
-    this.addCoinTransaction(userId, 'earn', amount, description);
-    this.save();
-    return true;
+    if (this._locks.has(userId)) return false;
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user) return false;
+      user.coins = (user.coins || 0) + amount;
+      this.addCoinTransaction(userId, 'earn', amount, description);
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(userId);
+    }
   }
 
-  // Deduct coins from user balance
+  // Deduct coins from user balance (concurrency-safe)
   deductCoins(userId, amount, description) {
-    const user = this.getUserById(userId);
-    if (!user || (user.coins || 0) < amount) return false;
-    user.coins -= amount;
-    this.addCoinTransaction(userId, 'spend', -amount, description);
-    this.save();
-    return true;
+    if (this._locks.has(userId)) return false; // operation in progress
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user || (user.coins || 0) < amount) return false;
+      user.coins -= amount;
+      this.addCoinTransaction(userId, 'spend', -amount, description);
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(userId);
+    }
   }
 
   // Freeze coins as transaction deposit
@@ -904,6 +917,7 @@ class Store {
     if (!invite) return { success: false, error: '邀请码无效' };
     if (invite.userId === newUserId) return { success: false, error: '不能使用自己的邀请码' };
     if (invite.usedBy.includes(newUserId)) return { success: false, error: '已使用过此邀请码' };
+    if (invite.usedBy.length >= 20) return { success: false, error: '邀请码使用次数已达上限' };
     invite.usedBy.push(newUserId);
     this.save();
     return { success: true, inviterId: invite.userId };
