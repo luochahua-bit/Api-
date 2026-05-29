@@ -1073,9 +1073,9 @@ router.post('/coin/purchase', userAuth, (req, res) => {
 
 // Process simulated payment
 router.post('/coin/pay', userAuth, (req, res) => {
-  // Simulated payment disabled in production — use USDT deposit instead
+  // Simulated payment disabled in production — use USDC deposit instead
   if (process.env.NODE_ENV === 'production') {
-    return res.status(400).json({ error: { message: '模拟支付已关闭，请使用 USDT 充值' } });
+    return res.status(400).json({ error: { message: '模拟支付已关闭，请使用 USDC 充值' } });
   }
   const { orderId } = req.body;
   if (!orderId) return res.status(400).json({ error: { message: '缺少订单 ID' } });
@@ -1098,7 +1098,7 @@ router.get('/coin/purchases', userAuth, (req, res) => {
 router.post('/coin/withdraw', userAuth, (req, res) => {
   const { coins, walletAddress } = req.body;
   if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
-  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDT-TRC20 收款地址' } });
+  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDC-Arbitrum 收款地址' } });
   if (coins > (req.user.coins || 0)) return res.status(400).json({ error: { message: '金币余额不足' } });
 
   const pending = store.getWithdrawalsByUser(req.userId).filter(w => w.status === 'pending');
@@ -1107,9 +1107,9 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
   // Calculate withdrawal fee
   const feeInfo = calculateWithdrawalFee(coins, req.user.feeCredits || 0);
   const actualDeduct = coins; // deduct full amount from user
-  const usdtPayout = feeInfo.payout / 10; // convert to USDT
+  const usdtPayout = feeInfo.payout / 10; // convert to USDC
 
-  store.deductCoins(req.userId, actualDeduct, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${feeInfo.payout}币=${usdtPayout}USDT)`);
+  store.deductCoins(req.userId, actualDeduct, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${feeInfo.payout}币=${usdtPayout}USDC)`);
 
   const withdrawal = {
     id: 'wd_' + crypto.randomUUID(),
@@ -1145,7 +1145,7 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
   const statusMsg = autoApproved ? '已自动审批通过' : '已提交，等待管理员审批';
   res.json({
     success: true,
-    message: `提现申请${statusMsg}。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${feeInfo.payout} 币 = ${usdtPayout} USDT`,
+    message: `提现申请${statusMsg}。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${feeInfo.payout} 币 = ${usdtPayout} USDC`,
     fee: feeInfo,
     withdrawal,
   });
@@ -1157,15 +1157,15 @@ router.get('/coin/withdrawals', userAuth, (req, res) => {
   res.json({ data: withdrawals });
 });
 
-// ==================== USDT Deposit ====================
+// ==================== USDC Deposit ====================
 
-const { createDepositOrder, checkDepositOrder, COINS_PER_USDT, MIN_DEPOSIT, WALLET_ADDRESS } = require('../services/usdtPayment');
+const { createDepositOrder, checkDepositOrder, COINS_PER_USDC, MIN_DEPOSIT, WALLET_ADDRESS } = require('../services/usdtPayment');
 
 // Create deposit order
 router.post('/deposit', userAuth, (req, res) => {
   const { amount } = req.body;
   if (!amount || amount < MIN_DEPOSIT) {
-    return res.status(400).json({ error: { message: `最低充值 ${MIN_DEPOSIT} USDT` } });
+    return res.status(400).json({ error: { message: `最低充值 ${MIN_DEPOSIT} USDC` } });
   }
   const result = createDepositOrder(req.userId, parseFloat(amount));
   if (!result.success) return res.status(400).json({ error: { message: result.error } });
@@ -1173,7 +1173,7 @@ router.post('/deposit', userAuth, (req, res) => {
     success: true,
     order: result.order,
     address: WALLET_ADDRESS,
-    message: `请转 ${result.order.usdtAmount} USDT 到指定地址`,
+    message: `请转 ${result.order.usdtAmount} USDC 到指定地址`,
   });
 });
 
@@ -1206,7 +1206,7 @@ router.post('/deposit/verify', userAuth, async (req, res) => {
     const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount);
     if (result.verified) {
       store.updateDepositOrder(orderId, { status: 'completed', txHash, confirmedAt: Date.now() });
-      store.addCoins(order.userId, order.coins, `USDT 充值 ${result.amount} USDT → ${order.coins} 币`);
+      store.addCoins(order.userId, order.coins, `USDC 充值 ${result.amount} USDC → ${order.coins} 币`);
       store.addProcessedTx(txHash);
       res.json({ success: true, message: `充值成功！${order.coins} 金币已到账` });
     } else {
@@ -1244,28 +1244,21 @@ function calculateWithdrawalFee(coins, feeCredits) {
   return { fee, rate, discount, payout: coins - fee };
 }
 
-// Validate TRON address format
+// Validate Arbitrum/Ethereum address format
 function validateTronAddress(address) {
   if (!address || typeof address !== 'string') {
     return { valid: false, message: '地址不能为空' };
   }
   const trimmed = address.trim();
-
-  // Check: must start with T
-  if (!trimmed.startsWith('T')) {
-    return { valid: false, message: 'TRON 地址必须以 T 开头，您可能选错了网络' };
+  if (!trimmed.startsWith('0x')) {
+    return { valid: false, message: '地址必须以 0x 开头，请确认是 Arbitrum 网络地址' };
   }
-
-  // Check: must be 34 characters
-  if (trimmed.length !== 34) {
-    return { valid: false, message: `TRON 地址应为 34 个字符，您输入了 ${trimmed.length} 个` };
+  if (trimmed.length !== 42) {
+    return { valid: false, message: '地址应为 42 个字符，您输入了 ' + trimmed.length + ' 个' };
   }
-
-  // Check: only Base58 characters (no 0, O, I, l)
-  if (!/^[1-9A-HJ-NP-Za-km-z]+$/.test(trimmed)) {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
     return { valid: false, message: '地址包含无效字符，请检查是否复制完整' };
   }
-
   return { valid: true, message: '地址格式正确' };
 }
 
@@ -1325,11 +1318,11 @@ router.post('/validate-address', userAuth, async (req, res) => {
   }
 });
 
-// USDT withdrawal (admin processes manually)
+// USDC withdrawal (admin processes manually)
 router.post('/withdraw-usdt', userAuth, (req, res) => {
   const { coins, walletAddress } = req.body;
   if (!coins || coins < 1) return res.status(400).json({ error: { message: '提现金币数必须大于 0' } });
-  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDT-TRC20 收款地址' } });
+  if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDC-Arbitrum 收款地址' } });
 
   const addrCheck = validateTronAddress(walletAddress);
   if (!addrCheck.valid) {
@@ -1340,10 +1333,10 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
   if ((user.coins || 0) < coins) return res.status(400).json({ error: { message: '付费币余额不足' } });
 
   const feeInfo = calculateWithdrawalFee(coins, user.feeCredits || 0);
-  const usdtPayout = feeInfo.payout / COINS_PER_USDT;
-  if (usdtPayout > 50) return res.status(400).json({ error: { message: '单次最多提现 50 USDT' } });
+  const usdtPayout = feeInfo.payout / COINS_PER_USDC;
+  if (usdtPayout > 50) return res.status(400).json({ error: { message: '单次最多提现 50 USDC' } });
 
-  store.deductCoins(req.userId, coins, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${usdtPayout}USDT)`);
+  store.deductCoins(req.userId, coins, `申请提现 ${coins} 币 (手续费${feeInfo.fee}币, 到手${usdtPayout}USDC)`);
   store.updateUser(req.userId, { usdtAddress: walletAddress });
 
   const withdrawal = {
@@ -1365,7 +1358,7 @@ router.post('/withdraw-usdt', userAuth, (req, res) => {
 
   res.json({
     success: true,
-    message: `提现申请已提交。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${usdtPayout} USDT`,
+    message: `提现申请已提交。扣除 ${coins} 币（手续费 ${feeInfo.fee} 币），到手 ${usdtPayout} USDC`,
     fee: feeInfo,
     addressCheck: addrCheck,
     withdrawal,

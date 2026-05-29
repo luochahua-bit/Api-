@@ -1,6 +1,6 @@
 /**
- * USDT-TRC20 Payment Service
- * Monitors incoming USDT deposits via TronGrid API
+ * USDC-Arbitrum Payment Service
+ * Monitors incoming USDC deposits via Arbiscan API
  * Auto-credits user accounts on confirmed transactions
  */
 
@@ -8,14 +8,15 @@ const axios = require('axios');
 const crypto = require('crypto');
 const store = require('../store');
 
-const WALLET_ADDRESS = process.env.USDT_WALLET_ADDRESS || '';
+const WALLET_ADDRESS = (process.env.USDT_WALLET_ADDRESS || '').toLowerCase();
 const PRIVATE_KEY = process.env.USDT_WALLET_PRIVATE_KEY || '';
 const COINS_PER_USDT = parseInt(process.env.USDT_COINS_PER_USDT) || 10;
 const MIN_DEPOSIT = parseFloat(process.env.USDT_MIN_DEPOSIT) || 1;
 const MAX_WITHDRAW = parseFloat(process.env.USDT_MAX_WITHDRAW) || 50;
-const TRONGRID_API = 'https://api.trongrid.io';
-const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'; // USDT-TRC20 contract
-const REQUIRED_CONFIRMATIONS = 20; // TRON: ~3s per block, 20 confirmations ≈ 1 minute
+const ARBISCAN_API = 'https://api.arbiscan.io/api';
+const ARBISCAN_KEY = process.env.ARBISCAN_API_KEY || '';
+const USDC_CONTRACT = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'; // USDC on Arbitrum One
+const REQUIRED_CONFIRMATIONS = 3; // Arbitrum: ~0.25s per block, 3 confirmations ≈ 1 second
 
 let monitorInterval = null;
 
@@ -23,10 +24,10 @@ let monitorInterval = null;
 
 function createDepositOrder(userId, usdtAmount) {
   if (usdtAmount < MIN_DEPOSIT) {
-    return { success: false, error: `最低充值 ${MIN_DEPOSIT} USDT` };
+    return { success: false, error: `最低充值 ${MIN_DEPOSIT} USDC` };
   }
   if (usdtAmount > 10000) {
-    return { success: false, error: '单次最多充值 10000 USDT' };
+    return { success: false, error: '单次最多充值 10000 USDC' };
   }
 
   // Generate unique amount with random decimals to distinguish orders
@@ -40,7 +41,7 @@ function createDepositOrder(userId, usdtAmount) {
     usdtAmount: parseFloat(uniqueAmount),
     coins,
     address: WALLET_ADDRESS,
-    status: 'pending',   // pending → confirming → completed → expired
+    status: 'pending',
     txHash: null,
     createdAt: Date.now(),
     expiresAt: Date.now() + 30 * 60 * 1000, // 30 minutes
@@ -60,12 +61,14 @@ function checkDepositOrder(orderId) {
   return { success: true, order };
 }
 
-// ========== Blockchain Monitoring ==========
+// ========== Blockchain Monitoring (Arbitrum) ==========
 
 async function getLatestBlockNumber() {
   try {
-    const resp = await axios.post(`${TRONGRID_API}/wallet/getnowblock`, {}, { timeout: 10000 });
-    return resp.data?.block_header?.raw_data?.number || 0;
+    const params = { module: 'proxy', action: 'eth_blockNumber' };
+    if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
+    const resp = await axios.get(ARBISCAN_API, { params, timeout: 10000 });
+    return parseInt(resp.data?.result, 16) || 0;
   } catch (e) {
     return 0;
   }
@@ -75,30 +78,28 @@ async function checkIncomingTransactions() {
   if (!WALLET_ADDRESS) return;
 
   try {
-    // Try TronGrid API with fallback
-    let resp;
-    try {
-      resp = await axios.get(
-        `${TRONGRID_API}/v1/accounts/${WALLET_ADDRESS}/transactions/trc20`,
-        { params: { limit: 20 }, timeout: 15000, validateStatus: () => true }
-      );
-    } catch (e) {
-      // Fallback: try api.tronstack.io
-      resp = await axios.get(
-        `https://api.tronstack.io/v1/accounts/${WALLET_ADDRESS}/transactions/trc20`,
-        { params: { limit: 20 }, timeout: 15000, validateStatus: () => true }
-      );
-    }
+    // Query ERC-20 token transfers to our wallet via Arbiscan
+    const params = {
+      module: 'account',
+      action: 'tokentx',
+      address: WALLET_ADDRESS,
+      contractaddress: USDC_CONTRACT,
+      page: 1,
+      offset: 20,
+      sort: 'desc',
+    };
+    if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
 
-    if (!resp || resp.status !== 200 || !resp.data?.data) {
-      if (resp && resp.status !== 200) {
-        console.log(`[USDT] API returned ${resp.status}: ${JSON.stringify(resp.data).slice(0, 100)}`);
+    const resp = await axios.get(ARBISCAN_API, { params, timeout: 15000, validateStatus: () => true });
+
+    if (!resp.data || resp.data.status !== '1' || !resp.data.result) {
+      if (resp.data?.message !== 'No transactions found') {
+        console.log(`[USDC] Arbiscan: ${resp.data?.message || 'unknown error'}`);
       }
       return;
     }
 
-    const transactions = resp.data.data.filter(tx => tx.to === WALLET_ADDRESS.toLowerCase());
-    // Check both pending and recently expired orders (user may have sent USDT after expiry)
+    const transactions = resp.data.result.filter(tx => tx.to.toLowerCase() === WALLET_ADDRESS);
     const pendingOrders = store.getPendingDepositOrders();
     const recentExpiredOrders = (store.getDepositOrders ? store.getDepositOrders() : [])
       .filter(o => o.status === 'expired' && Date.now() - o.expiresAt < 24 * 60 * 60 * 1000);
@@ -106,21 +107,18 @@ async function checkIncomingTransactions() {
     const latestBlock = await getLatestBlockNumber();
 
     for (const tx of transactions) {
-      // Only process incoming USDT to our wallet
-      if (tx.to !== WALLET_ADDRESS.toLowerCase()) continue;
-      if (tx.token_info?.address !== USDT_CONTRACT) continue;
-
       // Check block confirmations (prevent double-spend)
-      if (latestBlock > 0 && tx.block_number) {
-        const confirmations = latestBlock - tx.block_number;
+      const txBlock = parseInt(tx.blockNumber);
+      if (latestBlock > 0 && txBlock) {
+        const confirmations = latestBlock - txBlock;
         if (confirmations < REQUIRED_CONFIRMATIONS) {
-          console.log(`[USDT] Tx ${tx.transaction_id} has ${confirmations} confirmations, need ${REQUIRED_CONFIRMATIONS}. Skipping.`);
+          console.log(`[USDC] Tx ${tx.hash} has ${confirmations} confirmations, need ${REQUIRED_CONFIRMATIONS}. Skipping.`);
           continue;
         }
       }
 
-      const amount = parseFloat(tx.value) / 1e6; // USDT has 6 decimals
-      const txHash = tx.transaction_id;
+      const amount = parseFloat(tx.value) / 1e6; // USDC has 6 decimals
+      const txHash = tx.hash;
 
       // Check if this tx was already processed
       if (store.isDepositTxProcessed(txHash)) continue;
@@ -132,22 +130,19 @@ async function checkIncomingTransactions() {
       });
 
       if (matchedOrder) {
-        // Confirm the deposit
         store.updateDepositOrder(matchedOrder.id, {
           status: 'completed',
           txHash,
           confirmedAt: Date.now(),
         });
 
-        // Credit user's paid coins
-        store.addCoins(matchedOrder.userId, matchedOrder.coins, `USDT 充值 ${amount} USDT → ${matchedOrder.coins} 币`);
+        store.addCoins(matchedOrder.userId, matchedOrder.coins, `USDC 充值 ${amount} USDC → ${matchedOrder.coins} 币`);
         store.addProcessedTx(txHash);
 
-        console.log(`[USDT] Deposit confirmed: ${amount} USDT → ${matchedOrder.coins} coins for user ${matchedOrder.userId}`);
+        console.log(`[USDC] Deposit confirmed: ${amount} USDC → ${matchedOrder.coins} coins for user ${matchedOrder.userId}`);
       } else if (!store.isDepositTxProcessed(txHash)) {
-        // USDT received but no matching order — alert!
-        console.warn(`[USDT] ALERT: Unmatched deposit! ${amount} USDT from ${tx.from}, txHash: ${txHash}. Manual review required.`);
-        store.addProcessedTx(txHash); // prevent repeated alerts
+        console.warn(`[USDC] ALERT: Unmatched deposit! ${amount} USDC from ${tx.from}, txHash: ${txHash}. Manual review required.`);
+        store.addProcessedTx(txHash);
       }
     }
 
@@ -158,11 +153,68 @@ async function checkIncomingTransactions() {
       }
     }
   } catch (err) {
-    // Only log first error, then silently retry
     if (!checkIncomingTransactions._lastError || Date.now() - checkIncomingTransactions._lastError > 300000) {
-      console.error('[USDT] Monitor error:', err.message);
+      console.error('[USDC] Monitor error:', err.message);
       checkIncomingTransactions._lastError = Date.now();
     }
+  }
+}
+
+// ========== Transaction Verification ==========
+
+async function verifyTransaction(txHash, expectedAmount) {
+  try {
+    const params = {
+      module: 'transaction',
+      action: 'gettxinfo',
+      txhash: txHash,
+    };
+    if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
+
+    const resp = await axios.get(ARBISCAN_API, { params, timeout: 15000, validateStatus: () => true });
+
+    if (!resp.data || resp.data.status !== '1' || !resp.data.result) {
+      return { verified: false, error: '交易查询失败，请确认交易哈希正确' };
+    }
+
+    const tx = resp.data.result;
+
+    // Check if transaction was successful
+    if (tx.isError === '1') {
+      return { verified: false, error: '此交易失败' };
+    }
+
+    // Get the USDC transfer details from transaction logs
+    const usdcTransfer = tx.logs?.find(log =>
+      log.address.toLowerCase() === USDC_CONTRACT.toLowerCase() &&
+      log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' // Transfer event
+    );
+
+    if (!usdcTransfer) {
+      return { verified: false, error: '此交易不包含 USDC 转账' };
+    }
+
+    // Decode the amount from the log data
+    const amount = parseInt(usdcTransfer.data, 16) / 1e6;
+    const diff = Math.abs(amount - expectedAmount);
+
+    if (diff > 0.01) {
+      return { verified: false, error: `金额不匹配：期望 ${expectedAmount} USDC，实际 ${amount} USDC` };
+    }
+
+    // Check confirmations
+    const latestBlock = await getLatestBlockNumber();
+    const txBlock = parseInt(tx.blockNumber);
+    if (latestBlock > 0 && txBlock) {
+      const confirmations = latestBlock - txBlock;
+      if (confirmations < REQUIRED_CONFIRMATIONS) {
+        return { verified: false, error: `确认数不足：${confirmations}/${REQUIRED_CONFIRMATIONS}，请稍等` };
+      }
+    }
+
+    return { verified: true, amount };
+  } catch (err) {
+    return { verified: false, error: '验证出错: ' + err.message };
   }
 }
 
@@ -177,17 +229,15 @@ async function processWithdrawal(userId, coins) {
 
   const usdtAmount = coins / COINS_PER_USDT;
   if (usdtAmount > MAX_WITHDRAW) {
-    return { success: false, error: `单次最多提现 ${MAX_WITHDRAW} USDT` };
+    return { success: false, error: `单次最多提现 ${MAX_WITHDRAW} USDC` };
   }
 
-  // Check for pending withdrawals
   const pending = store.getWithdrawalsByUser(userId).filter(w => w.status === 'pending');
   if (pending.length > 0) {
     return { success: false, error: '有正在审核的提现申请，请等待处理' };
   }
 
-  // Deduct coins immediately (held in withdrawal)
-  store.deductCoins(userId, coins, `申请提现 ${coins} 币 (${usdtAmount} USDT)`);
+  store.deductCoins(userId, coins, `申请提现 ${coins} 币 (${usdtAmount} USDC)`);
 
   const withdrawal = {
     id: 'wd_' + crypto.randomUUID(),
@@ -211,10 +261,10 @@ async function processWithdrawal(userId, coins) {
 
 function startMonitor() {
   if (!WALLET_ADDRESS) {
-    console.log('[USDT] Wallet not configured, monitor disabled');
+    console.log('[USDC] Wallet not configured, monitor disabled');
     return;
   }
-  console.log(`[USDT] Monitor started for ${WALLET_ADDRESS}`);
+  console.log(`[USDC] Monitor started for ${WALLET_ADDRESS} (Arbitrum)`);
   checkIncomingTransactions(); // initial check
   monitorInterval = setInterval(checkIncomingTransactions, 30000); // every 30 seconds
 }
@@ -223,59 +273,6 @@ function stopMonitor() {
   if (monitorInterval) {
     clearInterval(monitorInterval);
     monitorInterval = null;
-  }
-}
-
-// ========== Transaction Verification ==========
-
-async function verifyTransaction(txHash, expectedAmount) {
-  try {
-    // Query TronGrid for transaction details
-    const resp = await axios.get(
-      `${TRONGRID_API}/v1/transactions/${txHash}/trc20`,
-      { timeout: 15000, validateStatus: () => true }
-    );
-
-    if (!resp.data || resp.status !== 200) {
-      return { verified: false, error: '交易查询失败' };
-    }
-
-    const tx = resp.data;
-    if (!tx.to || !tx.value) {
-      return { verified: false, error: '无效的交易数据' };
-    }
-
-    // Check if it's sent to our wallet
-    if (tx.to.toLowerCase() !== WALLET_ADDRESS.toLowerCase()) {
-      return { verified: false, error: '此交易不是发送到我们的钱包地址' };
-    }
-
-    // Check if it's USDT
-    if (tx.token_info?.address !== USDT_CONTRACT) {
-      return { verified: false, error: '此交易不是 USDT 转账' };
-    }
-
-    const amount = parseFloat(tx.value) / 1e6;
-    const diff = Math.abs(amount - expectedAmount);
-
-    if (diff > 0.01) {
-      return { verified: false, error: `金额不匹配：期望 ${expectedAmount} USDT，实际 ${amount} USDT` };
-    }
-
-    // Check confirmations
-    if (tx.block_number) {
-      const latestBlock = await getLatestBlockNumber();
-      if (latestBlock > 0) {
-        const confirmations = latestBlock - tx.block_number;
-        if (confirmations < REQUIRED_CONFIRMATIONS) {
-          return { verified: false, error: `确认数不足：${confirmations}/${REQUIRED_CONFIRMATIONS}，请稍等` };
-        }
-      }
-    }
-
-    return { verified: true, amount };
-  } catch (err) {
-    return { verified: false, error: '验证出错: ' + err.message };
   }
 }
 

@@ -334,7 +334,7 @@ textarea{min-height:60px;resize:vertical}
         <input type="number" id="rechargeAmount" placeholder="自定义金额" min="1" max="100000" style="flex:1">
         <button class="btn btn-primary" onclick="doRecharge()">立即充值</button>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px">10 金币 = 1 USDT · 充值后自动到账</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">10 金币 = 1 USDC · Arbitrum 网络 · 充值后自动到账</div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
@@ -348,12 +348,12 @@ textarea{min-height:60px;resize:vertical}
       <div class="card">
         <h3 style="font-size:14px;margin-bottom:10px">💰 提现</h3>
         <div style="margin-bottom:8px">
-          <input type="number" id="withdrawAmount" placeholder="提现金币数（10币=1 USDT）" min="1" style="width:100%">
+          <input type="number" id="withdrawAmount" placeholder="提现金币数（10币=1 USDC）" min="1" style="width:100%">
         </div>
         <div style="margin-bottom:8px">
-          <input type="text" id="withdrawAddress" placeholder="USDT-TRC20 收款地址（T 开头）" style="width:100%">
+          <input type="text" id="withdrawAddress" placeholder="USDC-Arbitrum 收款地址（0x 开头）" style="width:100%">
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">仅支持 TRC20 网络，选择其他网络资金不可找回</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">仅支持 Arbitrum 网络，选择其他网络资金不可找回</div>
         <button class="btn btn-outline btn-sm" onclick="doWithdraw()" style="width:100%">申请提现</button>
       </div>
     </div>
@@ -437,9 +437,9 @@ textarea{min-height:60px;resize:vertical}
     <div style="font-size:40px;margin-bottom:12px">💰</div>
     <h3 style="margin-bottom:8px" id="payTitle">充值</h3>
     <div style="font-size:24px;font-weight:800;color:var(--primary);margin-bottom:4px" id="payCoins">0 金币</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:16px" id="payUsdt">≈ 0 USDT</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:16px" id="payUsdt">≈ 0 USDC</div>
     <div style="background:var(--bg);border:1px dashed var(--border);border-radius:10px;padding:16px;margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">请转账到以下 TRC20 地址</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">请转账到以下 Arbitrum 地址</div>
       <div id="payAddress" style="font-size:13px;font-weight:600;word-break:break-all;user-select:all;cursor:text;color:var(--text)">-</div>
     </div>
     <button class="btn btn-primary" onclick="copyPayAddress()" style="width:100%;margin-bottom:8px">📋 复制地址</button>
@@ -1169,7 +1169,7 @@ async function loadWallet(){
         var statusColor=w.status==='pending'?'var(--warning)':w.status==='completed'?'var(--success)':'var(--danger)';
         var statusText=w.status==='pending'?'待审核':w.status==='completed'?'已通过':'已拒绝';
         return'<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-bottom:6px">'+
-          '<div><div style="font-size:13px">📤 '+w.coins+' 金币 → '+(w.usdtAmount||'?')+' USDT</div>'+
+          '<div><div style="font-size:13px">📤 '+w.coins+' 金币 → '+(w.usdtAmount||'?')+' USDC</div>'+
           '<div style="font-size:11px;color:var(--text3)">'+fmtTime(w.createdAt)+' | '+esc(w.walletAddress||'')+'</div></div>'+
           '<div style="font-size:12px;font-weight:600;color:'+statusColor+'">'+statusText+'</div></div>';
       }).join('');}
@@ -1195,7 +1195,7 @@ async function doRecharge(){
     _currentDepositOrderId=usdt.order.id;
     // Show payment modal
     document.getElementById('payCoins').textContent=amount+' 金币';
-    document.getElementById('payUsdt').textContent='≈ '+usdt.order.usdtAmount+' USDT';
+    document.getElementById('payUsdt').textContent='≈ '+usdt.order.usdtAmount+' USDC';
     document.getElementById('payAddress').textContent=usdt.address||'未配置钱包地址';
     document.getElementById('payOrderId').textContent='订单号: '+usdt.order.id;
     showModal('payModal');
@@ -1220,8 +1220,8 @@ async function doWithdraw(){
   var coins=parseInt(document.getElementById('withdrawAmount').value);
   var addr=document.getElementById('withdrawAddress').value.trim();
   if(!coins||coins<1){toast('请输入提现金币数','error');return;}
-  if(!addr){toast('请填写 USDT-TRC20 收款地址','error');return;}
-  if(!addr.startsWith('T')||addr.length!==34){toast('地址格式不正确，TRON 地址以 T 开头，34 个字符','error');return;}
+  if(!addr){toast('请填写 USDC-Arbitrum 收款地址','error');return;}
+  if(!addr.startsWith('0x')||addr.length!==42){toast('地址格式不正确，Arbitrum 地址以 0x 开头，42 个字符','error');return;}
   // Calculate fee preview
   var rate=coins<=20?0:coins<=100?0.05:coins<=500?0.03:0.02;
   var fee=Math.ceil(coins*rate);
@@ -1230,7 +1230,7 @@ async function doWithdraw(){
   var msg='提现明细：\n'+
     '扣除：'+coins+' 币\n'+
     '手续费：'+fee+' 币'+(coins<=20?'（免费）':'（'+(rate*100)+'%）')+'\n'+
-    '到手：'+payout+' 币 = '+usdtPayout+' USDT\n\n'+
+    '到手：'+payout+' 币 = '+usdtPayout+' USDC\n\n'+
     '收款地址：'+addr;
   if(!confirm(msg))return;
   try{

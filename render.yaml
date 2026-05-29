@@ -57,15 +57,17 @@ services:
       # Email - Resend API (recommended, set manually)
       - key: RESEND_API_KEY
         sync: false
-      # USDT deposit wallet address (public, users need to see this)
+      # USDC deposit wallet address (Arbitrum One, public)
       - key: USDT_WALLET_ADDRESS
-        value: "TMk4xZjFUFzQYEDdaHjm5iCcDUY9xfrB2Y"
+        value: "0x813c908319Ce8A6595b9a5e967ed4337A5aC44Ab"
       - key: USDT_COINS_PER_USDT
         value: "10"
       - key: USDT_MIN_DEPOSIT
         value: "1"
       - key: USDT_MAX_WITHDRAW
         value: "50"
+      - key: ARBISCAN_API_KEY
+        sync: false
       # Supabase cloud backup
       - key: SUPABASE_URL
         value: "https://gkiwcgyalrgfkmalhqch.supabase.co"
