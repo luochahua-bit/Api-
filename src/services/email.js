@@ -1,35 +1,70 @@
 /**
- * Email Service - Template-based email system
- * Supports: verification, feedback notification, admin notification
- * Configured via environment variables: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+ * Email Service - Resend API (works globally, no SMTP issues)
+ * Fallback: SMTP via nodemailer (for local development)
  */
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.qq.com';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT) || 465;
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const SITE_NAME = process.env.SITE_NAME || 'LLM API 中转站';
 const SITE_URL = process.env.SITE_URL || 'https://llm-api-relay.onrender.com';
+const EMAIL_FROM = process.env.EMAIL_FROM || `${SITE_NAME} <onboarding@resend.dev>`;
 
-let transporter = null;
+// ========== Core Send ==========
 
-function getTransporter() {
-  if (transporter) return transporter;
-  if (!SMTP_USER || !SMTP_PASS) {
-    console.log('[Email] SMTP not configured, emails will be logged to console');
-    return null;
+async function sendEmail(to, subject, html) {
+  // Try Resend API first
+  if (RESEND_API_KEY) {
+    try {
+      const resp = await axios.post('https://api.resend.com/emails', {
+        from: EMAIL_FROM,
+        to: [to],
+        subject,
+        html,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 15000,
+      });
+      console.log(`[Email] Sent via Resend to ${to}: ${subject}`);
+      return { success: true, id: resp.data?.id };
+    } catch (err) {
+      console.error(`[Email] Resend failed to ${to}:`, err.response?.data?.message || err.message);
+      return { success: false, error: err.response?.data?.message || err.message };
+    }
   }
-  transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-    connectionTimeout: 30000,  // 30s connection timeout
-    socketTimeout: 30000,      // 30s socket timeout
-  });
-  return transporter;
+
+  // Fallback: SMTP via nodemailer (local development)
+  const SMTP_HOST = process.env.SMTP_HOST || '';
+  const SMTP_USER = process.env.SMTP_USER || '';
+  const SMTP_PASS = process.env.SMTP_PASS || '';
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+    try {
+      const nodemailer = require('nodemailer');
+      const transport = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT) || 465,
+        secure: (parseInt(process.env.SMTP_PORT) || 465) === 465,
+        auth: { user: SMTP_USER, pass: SMTP_PASS },
+        connectionTimeout: 15000,
+        socketTimeout: 15000,
+      });
+      await transport.sendMail({
+        from: `"${SITE_NAME}" <${SMTP_USER}>`,
+        to, subject, html,
+      });
+      console.log(`[Email] Sent via SMTP to ${to}: ${subject}`);
+      return { success: true };
+    } catch (err) {
+      console.error(`[Email] SMTP failed to ${to}:`, err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // No email configured
+  console.log(`[Email] (simulated) To: ${to} | Subject: ${subject}`);
+  return { success: true, simulated: true };
 }
 
 // ========== Base Layout ==========
@@ -45,7 +80,6 @@ function baseLayout(content, { title, buttonText, buttonUrl } = {}) {
 <body style="margin:0;padding:0;background:#f1f5f9">
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:24px 16px">
 
-  <!-- Header -->
   <div style="text-align:center;margin-bottom:24px">
     <a href="${SITE_URL}" style="text-decoration:none">
       <h2 style="color:#3b82f6;margin:0;font-size:22px;font-weight:800">${SITE_NAME}</h2>
@@ -53,17 +87,14 @@ function baseLayout(content, { title, buttonText, buttonUrl } = {}) {
     <p style="font-size:12px;color:#94a3b8;margin:6px 0 0">免费 AI 模型聚合平台</p>
   </div>
 
-  <!-- Title -->
   ${title ? `<h3 style="font-size:16px;color:#1e293b;margin:0 0 16px;text-align:center">${title}</h3>` : ''}
 
-  <!-- Content -->
   <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin-bottom:16px">
     ${content}
   </div>
 
   ${btn}
 
-  <!-- Footer -->
   <div style="text-align:center;padding-top:16px;border-top:1px solid #e2e8f0">
     <a href="${SITE_URL}" style="color:#3b82f6;text-decoration:none;font-size:12px">${SITE_URL}</a>
     <p style="font-size:10px;color:#94a3b8;margin:8px 0 0">如非本人操作，请忽略此邮件。</p>
@@ -71,29 +102,6 @@ function baseLayout(content, { title, buttonText, buttonUrl } = {}) {
 
 </div>
 </body></html>`;
-}
-
-// ========== Core Send ==========
-
-async function sendEmail(to, subject, html) {
-  const transport = getTransporter();
-  if (!transport) {
-    console.log(`[Email] (simulated) To: ${to} | Subject: ${subject}`);
-    return { success: true, simulated: true };
-  }
-  try {
-    await transport.sendMail({
-      from: `"${SITE_NAME}" <${SMTP_FROM}>`,
-      to,
-      subject,
-      html,
-    });
-    console.log(`[Email] Sent to ${to}: ${subject}`);
-    return { success: true };
-  } catch (err) {
-    console.error(`[Email] Failed to ${to}:`, err.message);
-    return { success: false, error: err.message };
-  }
 }
 
 // ========== Verification Code ==========
