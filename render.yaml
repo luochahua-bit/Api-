@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: ADMIN_PASSWORD
-        generateValue: true
+        value: "20060303"
       - key: API_KEYS
         generateValue: true
       - key: CORS_ORIGIN
