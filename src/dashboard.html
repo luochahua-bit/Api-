@@ -442,8 +442,8 @@
           <div class="admin-login">
             <h3>用户登录</h3>
             <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px">登录市场账号查看余额、消费记录和性能数据。</p>
-            <input type="text" id="userLoginUsername" placeholder="用户名" onkeydown="if(event.key==='Enter')userDoLogin()">
-            <input type="password" id="userLoginPassword" placeholder="密码" onkeydown="if(event.key==='Enter')userDoLogin()">
+            <input type="text" id="userLoginUsername" placeholder="用户名" autocomplete="off" onkeydown="if(event.key==='Enter')userDoLogin()">
+            <input type="password" id="userLoginPassword" placeholder="密码" autocomplete="off" onkeydown="if(event.key==='Enter')userDoLogin()">
             <button class="btn btn-primary" onclick="userDoLogin()" style="width:100%;margin-bottom:8px">登录</button>
             <p style="font-size:11px;color:var(--text-secondary)">先在上方登录用户账号，再输入管理员密码</p>
           </div>

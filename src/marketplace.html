@@ -381,12 +381,11 @@ textarea{min-height:60px;resize:vertical}
       <button class="btn btn-sm btn-outline" id="authTabRegister" onclick="switchAuthTab('register')">注册</button>
     </div>
     <div id="loginForm">
-      <div class="form-group"><label>用户名</label><input type="text" id="loginUsername" placeholder="demo_buyer"></div>
+      <div class="form-group"><label>用户名</label><input type="text" id="loginUsername" placeholder="请输入用户名" autocomplete="off"></div>
       <div class="form-group"><label>密码</label>
-        <div style="position:relative"><input type="password" id="loginPassword" placeholder="demo123" style="padding-right:36px"><button type="button" onclick="togglePwd('loginPassword',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">👁</button></div>
+        <div style="position:relative"><input type="password" id="loginPassword" placeholder="请输入密码" autocomplete="off" style="padding-right:36px"><button type="button" onclick="togglePwd('loginPassword',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">👁</button></div>
       </div>
       <button class="btn btn-primary" id="loginSubmitBtn" onclick="doLogin()" style="width:100%">登录</button>
-      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">演示账号: demo_buyer / demo123</div>
     </div>
     <div id="registerForm" class="hidden">
       <div class="form-group"><label>用户名</label><input type="text" id="regUsername" placeholder="3-20个字符"></div>
