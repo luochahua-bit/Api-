@@ -101,7 +101,7 @@ textarea{min-height:60px;resize:vertical}
 <meta name="theme-color" content="#6366f1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="LLM API Key 交易平台 - 买卖 API 密钥，支持 OpenRouter、Groq、Cerebras 等">
+<meta name="description" content="免费使用 40+ AI 模型 - 注册即送 API Key，支持 GPT-4o、DeepSeek、Gemini 等。API Key 交易平台，安全担保交易">
 <link rel="manifest" href="/fixes/manifest.json">
 <link rel="icon" href="/fixes/icon-192.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/fixes/marketplace-styles.css">
@@ -160,10 +160,11 @@ textarea{min-height:60px;resize:vertical}
   <!-- Home Page -->
   <div id="page-home">
     <div class="hero">
-      <h1>API Key 交易平台</h1>
-      <p>买卖 API Key，安全担保交易，模型倍率透明</p>
+      <h1>免费使用 40+ AI 模型</h1>
+      <p>无需付费，注册即送 API Key，支持 GPT-4o、DeepSeek、Gemini 等主流模型</p>
       <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px">
-        <button class="btn btn-primary" onclick="showPage('browse')">浏览市场</button>
+        <button class="btn btn-primary" onclick="showAuthModal()">免费试用</button>
+        <button class="btn btn-outline" onclick="showPage('browse')">浏览市场</button>
         <button class="btn btn-outline" onclick="showPage('sell')">我要卖 Key</button>
       </div>
       <div class="hero-stats">
