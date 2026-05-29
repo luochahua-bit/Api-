@@ -16,11 +16,17 @@ async function sendEmail(to, subject, html) {
   // Try Resend API first
   if (RESEND_API_KEY) {
     try {
+      // MIME encode subject for proper Chinese display
+      const encodedSubject = '=?UTF-8?B?' + Buffer.from(subject, 'utf-8').toString('base64') + '?=';
+      // Ensure HTML has proper charset
+      const charsetHtml = html.includes('charset')
+        ? html
+        : html.replace('<head>', '<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">');
       const resp = await axios.post('https://api.resend.com/emails', {
         from: EMAIL_FROM,
         to: [to],
-        subject,
-        html,
+        subject: encodedSubject,
+        html: charsetHtml,
       }, {
         headers: {
           'Authorization': `Bearer ${RESEND_API_KEY}`,
