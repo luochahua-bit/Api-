@@ -41,6 +41,7 @@ class Store {
     };
     this.saveTimer = null;
     this.backupTimer = null;
+    this._onCoinChange = null; // callback for immediate cloud backup
     this.load();
     this.initBackup();
   }
@@ -609,6 +610,18 @@ class Store {
 
   // ========== Coin System ==========
 
+  // Register callback for immediate cloud backup on coin changes
+  onCoinChange(callback) {
+    this._onCoinChange = callback;
+  }
+
+  // Trigger immediate cloud backup (called after coin changes)
+  _triggerCoinBackup() {
+    if (this._onCoinChange) {
+      try { this._onCoinChange(); } catch (e) { /* ignore */ }
+    }
+  }
+
   // Add coins to user balance (concurrency-safe)
   /** Deducts coins: freeCoins first, then coins. @returns {{ deducted: number, remaining: number }} */
   addCoins(userId, amount, description) {
@@ -620,6 +633,7 @@ class Store {
       user.coins = (user.coins || 0) + amount;
       this.addCoinTransaction(userId, 'earn', amount, description);
       this.save();
+      this._triggerCoinBackup();
       return true;
     } finally {
       this._locks.delete(userId);
@@ -628,7 +642,7 @@ class Store {
 
   // Deduct coins from user balance (concurrency-safe)
   deductCoins(userId, amount, description) {
-    if (this._locks.has(userId)) return false; // operation in progress
+    if (this._locks.has(userId)) return false;
     this._locks.add(userId);
     try {
       const user = this.getUserById(userId);
@@ -636,6 +650,7 @@ class Store {
       user.coins -= amount;
       this.addCoinTransaction(userId, 'spend', -amount, description);
       this.save();
+      this._triggerCoinBackup();
       return true;
     } finally {
       this._locks.delete(userId);
@@ -1015,6 +1030,7 @@ class Store {
       this.state.processedTxHashes = this.state.processedTxHashes.slice(-10000);
     }
     this.save();
+    this._triggerCoinBackup();
   }
 
   isDepositTxProcessed(txHash) {

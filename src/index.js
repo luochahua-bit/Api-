@@ -236,6 +236,9 @@ if (!process.env.VERCEL) {
     const backup = require('./services/backup');
     backup.start();
 
+    // Immediate cloud backup after coin changes (prevents double-credit on restart)
+    store.onCoinChange(() => backup.backup());
+
     // Clean expired verification codes every hour
     setInterval(() => {
       try { store.cleanExpiredCodes(); } catch (e) { /* ignore */ }
