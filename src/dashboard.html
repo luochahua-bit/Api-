@@ -1067,40 +1067,50 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const disputes = data.data || [];
         if (!disputes.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-secondary)">暂无申诉记录</div>'; return; }
         el.innerHTML = disputes.map(d => {
-          const statusColors = { refunded: 'var(--warning)', frozen: 'var(--error)', dispute_rejected: 'var(--text-secondary)', completed: 'var(--success)' };
-          const statusLabels = { refunded: '已退款', frozen: '待处理', dispute_rejected: '已驳回', completed: '已完成' };
+          const statusColors = { disputed: 'var(--warning)', refunded: 'var(--success)', completed: 'var(--text-secondary)', frozen: 'var(--error)' };
+          const statusLabels = { disputed: '待裁决', refunded: '已退款', completed: '已驳回', frozen: '待处理' };
           const sc = statusColors[d.status] || 'var(--text3)';
           const sl = statusLabels[d.status] || _esc(d.status);
-          const actions = d.status === 'frozen'
-            ? '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-sm btn-success" onclick="handleDispute(\'' + _esc(d.id) + '\',\'approve\')">批准退款</button><button class="btn btn-sm btn-danger" onclick="handleDispute(\'' + _esc(d.id) + '\',\'reject\')">驳回</button></div>'
-            : d.status === 'refunded'
-            ? '<div style="margin-top:8px"><button class="btn btn-sm btn-outline" onclick="handleDispute(\'' + _esc(d.id) + '\',\'reject\')">驳回退款</button></div>'
+          const isPending = d.status === 'disputed' || d.status === 'frozen';
+          const actions = isPending
+            ? '<div style="display:flex;gap:6px;margin-top:8px">' +
+              '<button class="btn btn-sm btn-success" onclick="handleDispute(\'' + _esc(d.id) + '\',\'approve\')">批准退款</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="handleDispute(\'' + _esc(d.id) + '\',\'reject\')">驳回</button>' +
+              '<button class="btn btn-sm btn-outline" onclick="showAdminNoteInput(\'' + _esc(d.id) + '\')">备注</button></div>'
+            : (d.adminNote ? '<div style="margin-top:6px;font-size:11px;color:var(--text3)">裁决: ' + _esc(d.adminNote) + '</div>' : '');
+          const usageInfo = d.disputeUsagePercent != null
+            ? '<div style="color:var(--text3)">使用量: ' + d.disputeUsagePercent + '% | 请求数: ' + (d.disputeTotalRequests || 0) + ' | 错误: ' + (d.disputeErrorRequests || 0) + '</div>'
             : '';
-          return '<div style="padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-secondary)">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          return '<div style="padding:14px;border:1px solid ' + (isPending ? 'var(--warning)' : 'var(--border)') + ';border-radius:8px;margin-bottom:10px;background:var(--bg-secondary)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
             '<div><strong style="font-size:13px">' + _esc(d.listingDesc) + '</strong></div>' +
             '<span class="badge" style="background:' + sc + '22;color:' + sc + '">' + sl + '</span></div>' +
-            '<div style="font-size:12px;color:var(--text-secondary);line-height:1.8">' +
-            '<div>订单号: <code>' + _esc(d.id) + '</code></div>' +
-            '<div>买家: ' + _esc(d.buyerName) + ' → 卖家: ' + _esc(d.sellerName) + '</div>' +
-            '<div>金额: <strong>' + Number(d.totalPrice || 0) + ' 金币</strong></div>' +
-            (d.refundReason ? '<div style="color:var(--warning);margin-top:4px">退款原因: ' + _esc(d.refundReason) + '</div>' : '') +
-            '<div style="color:var(--text3)">' + new Date(d.createdAt).toLocaleString() + '</div>' +
+            '<div style="font-size:12px;line-height:1.8">' +
+            '<div style="color:var(--text-secondary)">订单: <code>' + _esc(d.id) + '</code> | 金额: <strong>' + Number(d.totalPrice || 0) + ' 币</strong></div>' +
+            '<div>👤 买家 <strong>' + _esc(d.buyerName) + '</strong> ' + (d.buyerEmail || '') + '</div>' +
+            '<div>🏪 卖家 <strong>' + _esc(d.sellerName) + '</strong> ' + (d.sellerEmail || '') + '</div>' +
+            usageInfo +
+            (d.refundReason ? '<div style="background:rgba(245,158,11,0.08);border-left:3px solid var(--warning);padding:6px 10px;margin:6px 0;border-radius:0 6px 6px 0"><strong>买家申诉:</strong> ' + _esc(d.refundReason) + '</div>' : '') +
+            (d.sellerResponse ? '<div style="background:rgba(59,130,247,0.08);border-left:3px solid var(--info);padding:6px 10px;margin:6px 0;border-radius:0 6px 6px 0"><strong>卖家回应:</strong> ' + _esc(d.sellerResponse) + '</div>' : '') +
+            (isPending && !d.sellerResponse ? '<div style="color:var(--text3);font-style:italic">⏳ 卖家尚未回应</div>' : '') +
+            '<div style="color:var(--text3);font-size:11px">' + new Date(d.createdAt).toLocaleString() + '</div>' +
             '</div>' + actions + '</div>';
         }).join('');
       } catch (e) { el.innerHTML = '<div style="color:var(--error)">加载失败: ' + _esc(e.message) + '</div>'; }
     }
 
     async function handleDispute(id, action) {
+      var reason = '';
       if (action === 'reject') {
-        var reason = prompt('请输入驳回理由（可选）：') || '';
+        reason = prompt('请输入驳回理由：') || '';
+        if (!reason) { toast('请输入驳回理由','error'); return; }
       }
-      if (action === 'approve' && !confirm('确认批准退款？')) return;
+      if (action === 'approve' && !confirm('确认批准退款？退款将从卖家余额扣除。')) return;
       try {
         const resp = await fetch(API_BASE + '/api/admin/disputes/' + id + '/' + action, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
-          body: JSON.stringify({ reason: reason || '' }),
+          body: JSON.stringify({ reason: reason, adminNote: reason }),
         });
         const data = await resp.json();
         if (data.error) { showToast(data.error.message, 'error'); return; }

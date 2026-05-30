@@ -447,6 +447,24 @@ textarea{min-height:60px;resize:vertical}
   </div>
 </div>
 
+<!-- Seller Dispute Response Modal -->
+<div id="respondModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('respondModal')">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeModal('respondModal')">&times;</button>
+    <h3 style="margin-bottom:12px">回应买家申诉</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:8px">买家申诉原因：</p>
+    <div id="respondDisputeReason" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;color:var(--warning)"></div>
+    <div class="form-group">
+      <label>你的回应：</label>
+      <textarea id="respondContent" rows="4" placeholder="说明你的立场，例如：Key 是正常的、可以提供技术支持..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:13px;outline:none;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-outline" onclick="closeModal('respondModal')" style="flex:1">取消</button>
+      <button id="respondSubmitBtn" class="btn btn-primary" onclick="submitDisputeResponse()" style="flex:1">提交回应</button>
+    </div>
+  </div>
+</div>
+
 <div id="payModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('payModal')">
   <div class="modal" style="max-width:420px;text-align:center">
     <button class="modal-close" onclick="closeModal('payModal')">&times;</button>
@@ -1141,18 +1159,33 @@ async function loadOrders(role){
     if(!d.data||!d.data.length){el.innerHTML='<div class="empty">暂无订单</div>';return;}
     el.innerHTML=d.data.map(function(o){
       var desc=(o.listingInfo&&o.listingInfo.description)||o.listingId;
-      var statusCls=o.status==='completed'?'escrow-completed':o.status==='frozen'?'escrow-frozen':'escrow-refunded';
-      var statusIcon=o.status==='completed'?'✅':o.status==='frozen'?'🔒':'↩️';
-      var statusText=o.status==='completed'?'已完成':o.status==='frozen'?'资金冻结中':'已退款';
+      var statusCls=o.status==='completed'?'escrow-completed':o.status==='frozen'?'escrow-frozen':o.status==='disputed'?'escrow-frozen':'escrow-refunded';
+      var statusIcon=o.status==='completed'?'✅':o.status==='frozen'?'🔒':o.status==='disputed'?'⚖️':'↩️';
+      var statusText=o.status==='completed'?'已完成':o.status==='frozen'?'资金冻结中':o.status==='disputed'?'申诉审核中':'已退款';
       var actions='';
+      var disputeInfo='';
       if(o.status==='frozen'&&role==='buyer'){
         actions='<button class="btn btn-sm btn-primary" onclick="confirmOrder(\''+escAttr(o.id)+'\')">确认收货</button>'+
                 '<button class="btn btn-sm btn-outline" onclick="disputeOrder(\''+escAttr(o.id)+'\')" style="margin-left:6px">申诉退款</button>';
+      }
+      if(o.status==='disputed'){
+        disputeInfo='<div style="margin-top:8px;padding:8px;background:rgba(245,158,11,0.1);border-radius:6px;font-size:11px">'+
+          '<div style="color:var(--warning);font-weight:600">申诉原因: '+esc(o.refundReason||'')+'</div>'+
+          (o.disputeUsagePercent!=null?'<div style="color:var(--text3)">使用量: '+o.disputeUsagePercent+'%</div>':'')+
+          (o.sellerResponse?'<div style="color:var(--info);margin-top:4px">卖家回应: '+esc(o.sellerResponse)+'</div>':'')+
+          '</div>';
+        if(role==='seller'&&!o.sellerResponse){
+          actions='<button class="btn btn-sm btn-primary" onclick="respondDispute(\''+escAttr(o.id)+'\')">回应申诉</button>';
+        }
+        if(role==='buyer'){
+          actions='<span style="font-size:11px;color:var(--warning)">等待管理员裁决...</span>';
+        }
       }
       return'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">'+
         '<div><strong style="font-size:13px">'+esc(desc)+'</strong>'+
         '<div style="font-size:11px;color:var(--text3);margin-top:4px">数量: '+o.amount+' | '+o.totalPrice+' 币 | '+fmtTime(o.createdAt)+'</div></div>'+
         '<div class="escrow-status '+statusCls+'">'+statusIcon+' '+statusText+'</div></div>'+
+        disputeInfo+
         (actions?'<div style="margin-top:10px">'+actions+'</div>':'')+'</div>';
     }).join('');
   }catch(e){toast(e.message,'error');}
@@ -1161,7 +1194,10 @@ async function loadOrders(role){
 async function confirmOrder(id){try{await api('/orders/'+id+'/confirm',{method:'POST'});toast('已确认收货，资金已转给卖家');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
 var _pendingDisputeId=null;
 async function disputeOrder(id){_pendingDisputeId=id;document.getElementById('disputeReason').value='';showModal('disputeModal');}
-async function submitDispute(){var reason=document.getElementById('disputeReason').value.trim();if(!reason){toast('请填写退款原因','error');return;}var btn=document.getElementById('disputeSubmitBtn');btn.disabled=true;btn.textContent='提交中...';try{await api('/orders/'+_pendingDisputeId+'/dispute',{method:'POST',body:JSON.stringify({reason:reason})});toast('申诉成功，资金已退回');closeModal('disputeModal');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='提交申诉';}}
+async function submitDispute(){var reason=document.getElementById('disputeReason').value.trim();if(!reason){toast('请填写退款原因','error');return;}var btn=document.getElementById('disputeSubmitBtn');btn.disabled=true;btn.textContent='提交中...';try{await api('/orders/'+_pendingDisputeId+'/dispute',{method:'POST',body:JSON.stringify({reason:reason})});toast('申诉已提交，等待管理员审核');closeModal('disputeModal');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='提交申诉';}}
+var _pendingRespondId=null;
+async function respondDispute(orderId){_pendingRespondId=orderId;document.getElementById('respondContent').value='';var el=document.getElementById('respondDisputeReason');el.textContent='加载中...';showModal('respondModal');try{var d=await api('/orders?role=seller');var order=(d.data||[]).find(function(o){return o.id===orderId;});el.textContent=order?(order.refundReason||'无原因'):'无法加载';}catch(e){el.textContent='加载失败';}}
+async function submitDisputeResponse(){var response=document.getElementById('respondContent').value.trim();if(!response){toast('请输入回应内容','error');return;}var btn=document.getElementById('respondSubmitBtn');btn.disabled=true;btn.textContent='提交中...';try{await api('/orders/'+_pendingRespondId+'/dispute-respond',{method:'POST',body:JSON.stringify({response:response})});toast('回应已提交，等待管理员裁决');closeModal('respondModal');loadOrders('seller');}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='提交回应';}}
 
 // ========== Tasks ==========
 async function loadTasks(){

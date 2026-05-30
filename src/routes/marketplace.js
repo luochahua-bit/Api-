@@ -815,36 +815,42 @@ router.post('/orders/:id/dispute', userAuth, (req, res) => {
       });
     }
 
-    if (usagePercent > 20) {
-      const remainingRatio = (100 - usagePercent) / 100;
-      const refundAmount = Math.floor(order.totalPrice * remainingRatio);
-      const refundOk = store.refundFromSeller(order.buyerId, order.sellerId, refundAmount, '部分退款: ' + (reason || '买家申诉') + ` (已用${Math.round(usagePercent)}%)`);
-      if (!refundOk) return res.status(500).json({ error: { message: '退款失败，卖家余额不足或系统繁忙' } });
-      // Disable buyer keys and restore listing quota on refund
-      const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
-      buyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
-      const remainingRestore = order.amount - Math.floor(order.amount * usagePercent / 100);
-      if (remainingRestore > 0) store.updateListing(order.listingId, { remainingQuota: (store.getListingById(order.listingId)?.remainingQuota || 0) + remainingRestore });
-      store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉', refundAmount });
-      return res.json({
-        success: true, refundAmount, message: `已退还 ${refundAmount} 币（已用 ${Math.round(usagePercent)}%，退还未使用部分）`,
-        order: store.getOrderById(order.id),
-      });
-    }
+    // Set order to 'disputed' — do NOT auto-refund, wait for admin decision
+    // Disable buyer key to prevent further usage during dispute
+    const disputeBuyerKeys = store.getMarketApiKeys().filter(k => k.userId === req.userId && k.listingId === order.listingId);
+    disputeBuyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
 
-    // Full refund (usage < 20%)
-    const refundOk = store.refundFromSeller(order.buyerId, order.sellerId, order.totalPrice, '退款: ' + (reason || '买家申诉'));
-    if (!refundOk) return res.status(500).json({ error: { message: '退款失败，卖家余额不足或系统繁忙' } });
-    // Disable buyer keys and restore full listing quota
-    const allBuyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
-    allBuyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
-    const listing = store.getListingById(order.listingId);
-    if (listing) store.updateListing(order.listingId, { remainingQuota: (listing.remainingQuota || 0) + order.amount });
-    store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉' });
-    res.json({ success: true, order: store.getOrderById(order.id) });
+    store.updateOrder(order.id, {
+      status: 'disputed',
+      refundReason: reason || '买家申诉',
+      disputeUsagePercent: Math.round(usagePercent),
+      disputeTotalRequests: totalRequests,
+      disputeErrorRequests: errorRequests,
+      disputeCreatedAt: Date.now(),
+    });
+
+    res.json({ success: true, message: '申诉已提交，等待管理员审核。卖家将收到通知。', order: store.getOrderById(order.id) });
   } finally {
     _disputeLocks.delete(orderId);
   }
+});
+
+// Seller responds to a dispute
+router.post('/orders/:id/dispute-respond', userAuth, (req, res) => {
+  const order = store.getOrderById(req.params.id);
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.sellerId !== req.userId) return res.status(403).json({ error: { message: '只能回应自己商品的申诉' } });
+  if (order.status !== 'disputed') return res.status(400).json({ error: { message: '该订单没有待处理的申诉' } });
+
+  const { response } = req.body;
+  if (!response) return res.status(400).json({ error: { message: '请输入回应内容' } });
+
+  store.updateOrder(order.id, {
+    sellerResponse: response,
+    sellerResponseAt: Date.now(),
+  });
+
+  res.json({ success: true, message: '回应已提交，等待管理员裁决' });
 });
 
 router.get('/orders', userAuth, (req, res) => {

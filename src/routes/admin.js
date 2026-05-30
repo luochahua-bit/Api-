@@ -319,11 +319,11 @@ router.put('/withdrawals/:id/reject', (req, res) => {
 
 // ========== Dispute Management ==========
 
-// Get all disputed/refunded orders
+// Get all disputed orders (pending + resolved)
 router.get('/disputes', (req, res) => {
   const orders = store.getOrders();
   const disputes = orders
-    .filter(o => o.status === 'refunded' || o.refundReason)
+    .filter(o => o.status === 'disputed' || o.status === 'refunded' || o.status === 'dispute_rejected' || o.refundReason)
     .map(o => {
       const buyer = store.getUserById(o.buyerId);
       const seller = store.getUserById(o.sellerId);
@@ -332,46 +332,83 @@ router.get('/disputes', (req, res) => {
         ...o,
         buyerName: buyer?.username || o.buyerId,
         sellerName: seller?.username || o.sellerId,
+        buyerEmail: buyer?.email ? buyer.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : '',
+        sellerEmail: seller?.email ? seller.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : '',
         listingDesc: listing?.description || o.listingId,
       };
     })
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    .sort((a, b) => {
+      // Pending disputes first
+      if (a.status === 'disputed' && b.status !== 'disputed') return -1;
+      if (a.status !== 'disputed' && b.status === 'disputed') return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
   res.json({ data: disputes });
 });
 
-// Approve dispute (confirm refund was correct — no action needed, already refunded)
+// Approve dispute — refund buyer, deduct from seller
 router.post('/disputes/:id/approve', (req, res) => {
   const order = store.getOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
-  if (order.status === 'refunded') {
-    return res.json({ success: true, message: '退款已生效，无需重复操作' });
+  if (order.status !== 'disputed' && order.status !== 'frozen') {
+    return res.status(400).json({ error: { message: '只能审批待处理的申诉' } });
   }
-  // If order is still frozen, process full refund
+
+  // Calculate refund amount based on usage
+  const usagePercent = order.disputeUsagePercent || 0;
+  let refundAmount = order.totalPrice;
+  if (usagePercent > 20) {
+    const remainingRatio = (100 - usagePercent) / 100;
+    refundAmount = Math.floor(order.totalPrice * remainingRatio);
+  }
+
+  // Refund from seller to buyer
   if (order.status === 'frozen') {
-    const refundOk = store.refundCoins(order.buyerId, order.totalPrice, '管理员审批退款: ' + (order.refundReason || ''));
+    // Coins still frozen — use refundCoins
+    const refundOk = store.refundCoins(order.buyerId, order.totalPrice, '管理员批准退款: ' + (order.refundReason || ''));
     if (!refundOk) return res.status(500).json({ error: { message: '退款失败' } });
-    // Restore listing quota
-    const listing = store.getListingById(order.listingId);
-    if (listing) store.updateListing(order.listingId, { remainingQuota: (listing.remainingQuota || 0) + order.amount });
-    // Disable buyer keys
-    const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
-    buyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
-    store.updateOrder(order.id, { status: 'refunded', refundReason: '管理员批准退款' });
-    return res.json({ success: true, message: '已批准退款，金币已退回买家' });
+  } else {
+    // Coins already released to seller — use refundFromSeller
+    const refundOk = store.refundFromSeller(order.buyerId, order.sellerId, refundAmount, '管理员批准退款: ' + (order.refundReason || ''));
+    if (!refundOk) return res.status(500).json({ error: { message: '退款失败，卖家余额不足' } });
   }
-  res.status(400).json({ error: { message: '订单状态不支持此操作: ' + order.status } });
+
+  // Restore listing quota (proportional)
+  const listing = store.getListingById(order.listingId);
+  if (listing) {
+    const quotaRestore = usagePercent > 20 ? Math.floor(order.amount * (100 - usagePercent) / 100) : order.amount;
+    store.updateListing(order.listingId, { remainingQuota: (listing.remainingQuota || 0) + quotaRestore });
+  }
+
+  store.updateOrder(order.id, {
+    status: 'refunded',
+    refundAmount,
+    adminNote: req.body.adminNote || '',
+    resolvedAt: Date.now(),
+  });
+
+  res.json({ success: true, message: `已批准退款 ${refundAmount} 金币`, refundAmount });
 });
 
-// Reject dispute (if order was refunded, reverse the refund)
+// Reject dispute — order stays as completed, re-enable buyer key
 router.post('/disputes/:id/reject', (req, res) => {
   const order = store.getOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
-  if (order.status !== 'refunded') {
-    return res.status(400).json({ error: { message: '只能驳回已退款的申诉' } });
+  if (order.status !== 'disputed') {
+    return res.status(400).json({ error: { message: '只能驳回待处理的申诉' } });
   }
-  // Mark as rejected (admin decided refund was wrong)
-  store.updateOrder(order.id, { status: 'dispute_rejected', refundReason: (order.refundReason || '') + ' [管理员驳回: ' + (req.body.reason || '无理由') + ']' });
-  res.json({ success: true, message: '申诉已驳回' });
+
+  // Re-enable buyer's key
+  const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
+  buyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: true }));
+
+  store.updateOrder(order.id, {
+    status: 'completed',
+    adminNote: '管理员驳回: ' + (req.body.reason || '无理由'),
+    resolvedAt: Date.now(),
+  });
+
+  res.json({ success: true, message: '申诉已驳回，订单恢复为已完成' });
 });
 
 module.exports = router;
