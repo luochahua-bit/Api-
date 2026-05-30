@@ -202,9 +202,9 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
 
     const resp = await axios.get(ARBISCAN_API, { params, timeout: 15000, validateStatus: () => true });
 
-    if (!resp.data || !resp.data.result) {
-      console.error('[USDC] verifyTransaction: no result from API', JSON.stringify(resp.data).slice(0, 500));
-      return { verified: false, error: '交易查询失败，请确认交易哈希正确' };
+    if (!resp.data || !resp.data.result || typeof resp.data.result !== 'object') {
+      console.error('[USDC] verifyTransaction: invalid response', JSON.stringify(resp.data).slice(0, 500));
+      return { verified: false, error: '交易查询失败: ' + (typeof resp.data?.result === 'string' ? resp.data.result : '未知错误') };
     }
 
     const receipt = resp.data.result;
