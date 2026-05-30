@@ -985,14 +985,15 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const statusColors = { pending: 'var(--warning)', approved: 'var(--success)', rejected: 'var(--error)' };
         const statusLabels = { pending: '待审核', approved: '已批准', rejected: '已拒绝' };
 
-        el.innerHTML = '<div style="margin-bottom:12px;font-size:13px">共 ' + withdrawals.length + ' 笔，待审核 <strong style="color:var(--warning)">' + data.pending + '</strong></div>' +
+        const pendingCount = withdrawals.filter(w => w.status === 'pending').length;
+        el.innerHTML = '<div style="margin-bottom:12px;font-size:13px">共 ' + withdrawals.length + ' 笔，待审核 <strong style="color:var(--warning)">' + pendingCount + '</strong></div>' +
           withdrawals.map(w => `
             <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                 <div>
-                  <strong>${_esc(w.username)}</strong>
+                  <strong>${_esc(w.username || w.userId)}</strong>
                   <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${w.coins} 币</span>
-                  <span style="font-size:14px;font-weight:700;color:var(--primary);margin-left:8px">→ ${w.usdtAmount} USDC</span>
+                  <span style="font-size:14px;font-weight:700;color:var(--primary);margin-left:8px">→ ${w.usdtAmount || '?'} USDC</span>
                   ${w.fee ? '<span style="font-size:11px;color:var(--text3);margin-left:4px">(手续费 ' + w.fee + ' 币)</span>' : ''}
                 </div>
                 <span class="badge" style="background:${statusColors[w.status]}22;color:${statusColors[w.status]}">${statusLabels[w.status]}</span>

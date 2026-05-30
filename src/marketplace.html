@@ -1308,12 +1308,18 @@ async function doWithdraw(){
   var fee=Math.ceil(coins*rate);
   var payout=coins-fee;
   var usdtPayout=(payout/10).toFixed(2);
-  var msg='提现明细：\n'+
-    '扣除：'+coins+' 币\n'+
-    '手续费：'+fee+' 币'+(coins<=20?'（免费）':'（'+(rate*100)+'%）')+'\n'+
-    '到手：'+payout+' 币 = '+usdtPayout+' USDC\n\n'+
-    '收款地址：'+addr;
-  if(!confirm(msg))return;
+  // Show confirmation modal
+  document.getElementById('wdCoins').textContent=coins+' 币';
+  document.getElementById('wdFee').textContent=fee+' 币'+(coins<=20?'（免费）':'（'+(rate*100)+'%）');
+  document.getElementById('wdPayout').textContent=payout+' 币 = '+usdtPayout+' USDC';
+  document.getElementById('wdAddr').textContent=addr;
+  showModal('withdrawModal');
+}
+
+async function confirmWithdraw(){
+  var coins=parseInt(document.getElementById('withdrawAmount').value);
+  var addr=document.getElementById('withdrawAddress').value.trim();
+  closeModal('withdrawModal');
   try{
     var r=await api('/coin/withdraw',{method:'POST',body:JSON.stringify({coins:coins,walletAddress:addr})});
     toast(r.message,'success');
