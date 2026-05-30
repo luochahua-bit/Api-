@@ -26,12 +26,12 @@ function getProvider(url) {
   if (url.includes('github')) return 'github';
   return 'default';
 }
-function getProviderIcon(name) { return PROVIDER_ICONS[name] || 'AI'; }
-function getProviderCls(name) { return PROVIDER_CLS[name] || 'provider-default'; }
+function getProviderIcon(name) { var k = getProvider(name); return PROVIDER_ICONS[k] || 'AI'; }
+function getProviderCls(name) { var k = getProvider(name); return PROVIDER_CLS[k] || 'provider-default'; }
 
 // Toast notification
 function toast(msg, type) {
-  type = type || 'info';
+  type = type || 'success';
   var el = document.createElement('div');
   el.className = 'toast toast-' + type;
   el.textContent = msg;
