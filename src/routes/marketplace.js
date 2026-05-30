@@ -1218,6 +1218,14 @@ router.post('/deposit/verify', userAuth, async (req, res) => {
       return res.json({ success: true, message: '此交易已被处理' });
     }
 
+    // Extra safety: check if any completed order already used this txHash
+    const allOrders = store.getDepositOrders ? store.getDepositOrders() : [];
+    const alreadyUsed = allOrders.find(o => o.txHash === txHash && o.status === 'completed');
+    if (alreadyUsed) {
+      store.addProcessedTx(txHash); // re-mark to prevent future attempts
+      return res.json({ success: true, message: '此交易已被处理' });
+    }
+
     // Verify transaction on blockchain
     const usdtPayment = require('../services/usdtPayment');
     const result = await usdtPayment.verifyTransaction(txHash, order.usdtAmount, 0.01);
