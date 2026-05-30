@@ -867,6 +867,21 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     </div>
   </div>
 
+  <!-- Create Redemption Code Modal -->
+  <div class="modal-overlay" id="createRedeemModal" style="display:none">
+    <div class="modal">
+      <h3>创建兑换码</h3>
+      <label>每个兑换码的金币数量</label>
+      <input type="number" id="redeemCoins" placeholder="例如 50" min="1">
+      <label>创建数量（1-50）</label>
+      <input type="number" id="redeemCount" value="1" min="1" max="50">
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal('createRedeemModal')">取消</button>
+        <button class="btn btn-primary" id="createRedeemBtn" onclick="submitCreateRedeem()">创建</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -1277,15 +1292,34 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     async function confirmDeposit(id) {
-      if (!confirm('确认此充值订单已到账？金币将充入用户账户。')) return;
+      if (!confirm('确认此充值订单已到账？系统将自动验证链上交易。')) return;
       try {
         const resp = await fetch(API_BASE + '/api/admin/deposits/' + id + '/confirm', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
-          body: JSON.stringify({ note: '管理员手动确认到账' }),
+          body: JSON.stringify({ note: '管理员确认到账' }),
         });
         const data = await resp.json();
-        if (data.error) { showToast(data.error.message, 'error'); return; }
+        if (data.error) {
+          // If verification failed, offer force-confirm option
+          if (data.error.message.includes('链上验证') || data.error.message.includes('交易哈希')) {
+            if (confirm('验证失败: ' + data.error.message + '\n\n是否强制确认？（请确保已在区块链上核实交易）')) {
+              const note = prompt('请输入强制确认原因：') || '管理员强制确认';
+              const resp2 = await fetch(API_BASE + '/api/admin/deposits/' + id + '/confirm', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+                body: JSON.stringify({ note: note, forceConfirm: true }),
+              });
+              const data2 = await resp2.json();
+              if (data2.error) { showToast(data2.error.message, 'error'); return; }
+              showToast(data2.message, 'success');
+              loadDeposits();
+              return;
+            }
+            return;
+          }
+          showToast(data.error.message, 'error'); return;
+        }
         showToast(data.message, 'success');
         loadDeposits();
       } catch (e) { showToast('操作失败: ' + e.message, 'error'); }

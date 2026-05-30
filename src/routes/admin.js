@@ -192,7 +192,7 @@ router.get('/deposits', (req, res) => {
 });
 
 // Cancel a pending deposit order (admin)
-router.put('/deposits/:id/cancel', (req, res) => {
+router.put('/deposits/:id/cancel', requireAdmin, (req, res) => {
   const order = store.getDepositOrder ? store.getDepositOrder(req.params.id) : null;
   if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
   if (order.status !== 'pending') return res.status(400).json({ error: { message: '只能取消待处理的订单' } });
@@ -200,13 +200,29 @@ router.put('/deposits/:id/cancel', (req, res) => {
   res.json({ success: true, message: '订单已取消' });
 });
 
-// Manually confirm a pending deposit order (admin)
-router.put('/deposits/:id/confirm', (req, res) => {
+// Manually confirm a pending deposit order (admin only) — requires on-chain verification
+router.put('/deposits/:id/confirm', requireAdmin, async (req, res) => {
   const order = store.getDepositOrder ? store.getDepositOrder(req.params.id) : null;
   if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
   if (order.status !== 'pending') return res.status(400).json({ error: { message: '只能确认待处理的订单' } });
+
+  // Verify transaction on-chain before crediting
+  if (order.txHash) {
+    const { verifyTransaction } = require('../services/usdtPayment');
+    const result = await verifyTransaction(order.txHash, order.usdtAmount);
+    if (!result.verified) {
+      return res.status(400).json({ error: { message: '链上验证失败: ' + result.error } });
+    }
+  } else {
+    // No txHash provided — require admin to explicitly bypass (with audit log)
+    if (!req.body.forceConfirm) {
+      return res.status(400).json({ error: { message: '用户未提供交易哈希，无法验证。如需强制确认，请在备注中说明原因并勾选强制确认。' } });
+    }
+    console.warn(`[Admin] Force-confirming deposit ${order.id} without txHash verification. Admin: ${req.adminUsername}, Note: ${req.body.note}`);
+  }
+
   store.updateDepositOrder(order.id, { status: 'completed', confirmedAt: Date.now(), note: req.body.note || '管理员手动确认' });
-  store.addCoins(order.userId, order.coins, `USDC 充值 ${order.usdtAmount} USDC → ${order.coins} 币 (管理员手动确认)`);
+  store.addCoins(order.userId, order.coins, `USDC 充值 ${order.usdtAmount} USDC → ${order.coins} 币 (管理员确认)`);
   store.addProcessedTx('manual_' + order.id);
   res.json({ success: true, message: `已确认到账，${order.coins} 金币已充入用户账户` });
 });
