@@ -57,9 +57,8 @@ function updateUI() {
     var pc = currentUser.coins || 0;
     if (balanceDisplay) balanceDisplay.textContent = '免费:' + fc + ' | 付费:' + fmtCoins(pc);
     if (frozenDisplay) {
-      var frozen = currentUser.frozenCoins || 0;
-      frozenDisplay.classList.toggle('hidden', frozen <= 0);
-      if (frozen > 0) frozenDisplay.textContent = '冻结:' + fmtCoins(frozen);
+      var fb = currentUser.frozenBalance || 0;
+      frozenDisplay.textContent = fb > 0 ? '🔒' + fb.toFixed(2) : '';
     }
   }
 }

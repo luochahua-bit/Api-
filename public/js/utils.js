@@ -3,7 +3,7 @@
 
 // Provider detection
 var PROVIDER_ICONS = {
-  openrouter: 'OR', groq: 'GQ', cerebras: 'CB', google: 'GM',
+  openrouter: 'OR', groq: 'GQ', cerebras: 'CB', google: 'GG',
   sambanova: 'SN', mistral: 'MI', nvidia: 'NV', cohere: 'CH', github: 'GH'
 };
 var PROVIDER_CLS = {
