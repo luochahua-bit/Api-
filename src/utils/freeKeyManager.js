@@ -11,6 +11,7 @@ const { MODELS } = require('../data/models');
 const FREE_PREFIX = 'sk-free-';
 const TOKENS_PER_COIN = 10000; // 1 free coin = 10,000 tokens
 const MIN_COINS_PER_REQUEST = 1; // minimum deduction per request
+const FREE_DAILY_LIMIT = 50; // free key daily request limit
 
 // Free model IDs — derived from shared model catalog
 const FREE_MODEL_IDS = MODELS.filter(m => m.free).map(m => m.id);
@@ -83,12 +84,10 @@ function deductFreeCoins(userId, totalTokens) {
 
   if (actualDeduct <= 0) return { success: false, deducted: 0, remaining: 0 };
 
-  store.updateUser(userId, {
-    freeCoins: balance - actualDeduct,
-    totalCoinSpending: (user.totalCoinSpending || 0) + actualDeduct,
-  });
-  store.addCoinTransaction(userId, 'spend_free', -actualDeduct,
+  // Use store.spendCoins for concurrency-safe deduction with locking
+  const result = store.spendFreeCoins(userId, actualDeduct,
     `API 调用 (${totalTokens || 0} token, ${actualDeduct} 币)`);
+  if (!result) return { success: false, deducted: 0, remaining: balance };
 
   return { success: true, deducted: actualDeduct, remaining: balance - actualDeduct };
 }
@@ -116,5 +115,5 @@ module.exports = {
   generateFreeKey, isFreeKey,
   checkFreeCoinBalance, calculateCoinCost, deductFreeCoins,
   isFreeModel, getFreeModelsForResponse,
-  TOKENS_PER_COIN, MIN_COINS_PER_REQUEST,
+  TOKENS_PER_COIN, MIN_COINS_PER_REQUEST, FREE_DAILY_LIMIT,
 };

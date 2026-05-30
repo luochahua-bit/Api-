@@ -8,6 +8,38 @@ const { generateCode, sendVerificationEmail } = require('../services/email');
 const { validateEmail, normalizeEmail } = require('../utils/emailValidator');
 const { generateFreeKey, FREE_DAILY_LIMIT } = require('../utils/freeKeyManager');
 const { createPaymentOrder, processSimulatedPayment, getUserPayments } = require('../services/payment');
+
+// SSRF protection: validate baseUrl against internal/private network access
+const BLOCKED_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'metadata.google.internal']);
+const PRIVATE_PREFIXES = ['10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', '192.168.', '169.254.'];
+function validateBaseUrl(raw) {
+  try {
+    const url = new URL(raw);
+    if (!['https:', 'http:'].includes(url.protocol)) return '仅支持 http/https 协议';
+    let host = url.hostname.toLowerCase();
+    // Reject IPv6 bracket notation
+    if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+    if (BLOCKED_HOSTS.has(host) || BLOCKED_HOSTS.has('[' + host + ']')) return '不允许访问内部地址';
+    // Block all IPv6 private/link-local/mapped addresses
+    if (host.includes(':')) {
+      // Any IPv6 address that is not a public unicast address is blocked
+      if (host.startsWith('fe80') || host.startsWith('fc') || host.startsWith('fd') ||
+          host.startsWith('::1') || host === '::' || host.includes('::ffff:') ||
+          host.startsWith('0:0:0:0:0:ffff:') || host.startsWith('0:0:0:0:0:0:0:0')) {
+        return '不允许访问内网/IPv6 地址';
+      }
+      return '不允许访问 IPv6 地址'; // block all IPv6 as safety measure
+    }
+    for (const p of PRIVATE_PREFIXES) { if (host.startsWith(p)) return '不允许访问内网地址'; }
+    // Decimal IP check: http://2130706433/ = 127.0.0.1
+    if (/^\d+$/.test(host)) return '不允许访问数字IP地址';
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+      const parts = host.split('.').map(Number);
+      if (parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 169 && parts[1] === 254)) return '不允许访问内网地址';
+    }
+    return null;
+  } catch { return 'URL 格式无效'; }
+}
 const store = require('../store');
 const userAuth = require('../middleware/userAuth');
 const adminAuth = require('../middleware/adminAuth');
@@ -373,6 +405,8 @@ router.get('/listings/:id', (req, res) => {
 router.post('/listings', userAuth, async (req, res) => {
   const { baseUrl, apiKey, description, models, modelRates, pricePerRequest, pricePerToken, totalQuota, sharingMode } = req.body;
   if (!baseUrl || !apiKey) return res.status(400).json({ error: { message: 'baseUrl 和 apiKey 必填' } });
+  const ssrfError = validateBaseUrl(baseUrl);
+  if (ssrfError) return res.status(400).json({ error: { message: ssrfError } });
   if (!pricePerRequest && !pricePerToken) return res.status(400).json({ error: { message: '至少设置一种价格' } });
   if (pricePerRequest && pricePerRequest < 0.01) return res.status(400).json({ error: { message: '价格最低 0.01 金币' } });
 
@@ -467,6 +501,8 @@ router.delete('/listings/:id', userAuth, (req, res) => {
 router.post('/probe-models', userAuth, async (req, res) => {
   const { baseUrl, apiKey } = req.body;
   if (!baseUrl || !apiKey) return res.status(400).json({ error: { message: 'baseUrl 和 apiKey 必填' } });
+  const ssrfError = validateBaseUrl(baseUrl);
+  if (ssrfError) return res.status(400).json({ error: { message: ssrfError } });
 
   const result = await testProviderKey(baseUrl, apiKey);
   if (!result.healthy) {
@@ -577,6 +613,7 @@ router.post('/listings/:id/verify', userAuth, async (req, res) => {
 router.post('/listings/:id/verify-model', userAuth, async (req, res) => {
   const listing = store.getListingById(req.params.id);
   if (!listing) return res.status(404).json({ error: { message: '商品不存在' } });
+  if (listing.sellerId !== req.userId) return res.status(403).json({ error: { message: '只能验证自己的商品' } });
   const { model } = req.body;
   if (!model) return res.status(400).json({ error: { message: 'model 必填' } });
 
@@ -598,6 +635,7 @@ router.post('/orders', userAuth, async (req, res) => {
   if (listing.sellerId === req.userId) return res.status(400).json({ error: { message: '不能购买自己的商品' } });
 
   const purchaseAmount = parseInt(amount) || 1;
+  if (purchaseAmount <= 0) return res.status(400).json({ error: { message: '购买数量必须大于 0' } });
   if (listing.remainingQuota < purchaseAmount) return res.status(400).json({ error: { message: `库存不足，剩余 ${listing.remainingQuota}` } });
 
   // Exclusive mode: only allow one buyer at a time
@@ -634,17 +672,19 @@ router.post('/orders', userAuth, async (req, res) => {
     // Key works - release coins to seller
     if (totalPrice > 0) {
       const buyer = store.getUserById(req.userId);
-      const { finalFee } = calculateFeeWithCredits(totalPrice, buyer.feeCredits || 0);
+      const { finalFee, discount } = calculateFeeWithCredits(totalPrice, buyer.feeCredits || 0);
       store.releaseCoins(req.userId, listing.sellerId, totalPrice, finalFee, '购买 ' + listing.description);
-      // Deduct used fee credits
-      const discount = totalPrice >= 1500 ? Math.min(buyer.feeCredits || 0, Math.ceil(totalPrice * 0.05)) : Math.min(buyer.feeCredits || 0, Math.ceil(totalPrice * 0.01));
+      // Deduct used fee credits (using same discount from calculateFeeWithCredits)
       if (discount > 0) store.updateUser(req.userId, { feeCredits: (buyer.feeCredits || 0) - discount });
     }
-    // Update listing: decrement quota
-    store.updateListing(listing.id, {
-      remainingQuota: listing.remainingQuota - purchaseAmount,
-      soldCount: (listing.soldCount || 0) + purchaseAmount,
-    });
+    // Update listing: atomically decrement quota (prevents overselling)
+    const quotaOk = store.decrementListingQuota(listing.id, purchaseAmount);
+    if (!quotaOk) {
+      // Rollback: refund frozen coins
+      store.refundCoins(req.userId, totalPrice, '库存不足，自动退款');
+      store.updateOrder(order.id, { status: 'refunded', refundReason: '库存不足' });
+      return res.status(400).json({ error: { message: '库存不足，购买已取消，金币已退回' } });
+    }
     store.updateOrder(order.id, { status: 'completed' });
 
     // Generate buyer API key
@@ -699,74 +739,112 @@ router.post('/orders', userAuth, async (req, res) => {
 });
 
 // Manual confirm order (buyer confirms key works after testing)
+const _orderConfirmLocks = new Set();
 router.post('/orders/:id/confirm', userAuth, (req, res) => {
-  const order = store.getOrderById(req.params.id);
-  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
-  if (order.buyerId !== req.userId) return res.status(403).json({ error: { message: '只能确认自己的订单' } });
-  if (order.status !== 'frozen') return res.status(400).json({ error: { message: '订单状态异常' } });
+  const orderId = req.params.id;
+  if (_orderConfirmLocks.has(orderId)) return res.status(409).json({ error: { message: '订单正在处理中，请稍后' } });
+  _orderConfirmLocks.add(orderId);
+  try {
+    const order = store.getOrderById(orderId);
+    if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+    if (order.buyerId !== req.userId) return res.status(403).json({ error: { message: '只能确认自己的订单' } });
+    if (order.status !== 'frozen') return res.status(400).json({ error: { message: '订单状态异常' } });
 
-  // Use coin system with fee credits
-  const buyer = store.getUserById(order.buyerId);
-  const { finalFee, discount } = calculateFeeWithCredits(order.totalPrice, buyer.feeCredits || 0);
-  store.releaseCoins(order.buyerId, order.sellerId, order.totalPrice, finalFee, '确认收货');
-  if (discount > 0) store.updateUser(order.buyerId, { feeCredits: (buyer.feeCredits || 0) - discount });
-  store.updateOrder(order.id, { status: 'completed' });
-  res.json({ success: true, order: store.getOrderById(order.id) });
+    // Atomic status update to prevent double-release
+    const updateOk = store.updateOrder(orderId, { status: 'completed' });
+    if (!updateOk) {
+      return res.status(400).json({ error: { message: '订单状态更新失败' } });
+    }
+    // Re-read to confirm status actually changed
+    const updatedOrder = store.getOrderById(orderId);
+    if (!updatedOrder || updatedOrder.status !== 'completed') {
+      return res.status(400).json({ error: { message: '订单状态更新失败' } });
+    }
+
+    // Use coin system with fee credits
+    const buyer = store.getUserById(order.buyerId);
+    const { finalFee, discount } = calculateFeeWithCredits(order.totalPrice, buyer.feeCredits || 0);
+    store.releaseCoins(order.buyerId, order.sellerId, order.totalPrice, finalFee, '确认收货');
+    if (discount > 0) store.updateUser(order.buyerId, { feeCredits: (buyer.feeCredits || 0) - discount });
+    res.json({ success: true, order: store.getOrderById(orderId) });
+  } finally {
+    _orderConfirmLocks.delete(orderId);
+  }
 });
 
 // Dispute order (buyer reports key not working)
+const _disputeLocks = new Set();
 router.post('/orders/:id/dispute', userAuth, (req, res) => {
-  const order = store.getOrderById(req.params.id);
-  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
-  if (order.buyerId !== req.userId) return res.status(403).json({ error: { message: '只能申诉自己的订单' } });
-  if (order.status !== 'frozen') return res.status(400).json({ error: { message: '订单状态异常' } });
+  const orderId = req.params.id;
+  if (_disputeLocks.has(orderId)) return res.status(409).json({ error: { message: '订单正在处理中，请稍后' } });
+  _disputeLocks.add(orderId);
+  try {
+    const order = store.getOrderById(orderId);
+    if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+    if (order.buyerId !== req.userId) return res.status(403).json({ error: { message: '只能申诉自己的订单' } });
+    if (order.status !== 'frozen' && order.status !== 'completed') {
+      return res.status(400).json({ error: { message: '订单状态不支持退款' } });
+    }
+    if (order.status === 'refunded') return res.status(400).json({ error: { message: '订单已退款' } });
 
-  // Refund cooldown: max 1 refund per 7 days
-  const recentRefunds = store.getOrdersByBuyer(req.userId)
-    .filter(o => o.status === 'refunded' && o.createdAt > Date.now() - 7 * 24 * 60 * 60 * 1000);
-  if (recentRefunds.length >= 1) {
-    return res.status(400).json({ error: { message: '7 天内已有退款记录，请联系客服' } });
+    // Refund cooldown: max 1 refund per 7 days
+    const recentRefunds = store.getOrdersByBuyer(req.userId)
+      .filter(o => o.status === 'refunded' && o.createdAt > Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (recentRefunds.length >= 1) {
+      return res.status(400).json({ error: { message: '7 天内已有退款记录，请联系客服' } });
+    }
+
+    // Check usage from request logs
+    const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === req.userId && k.listingId === order.listingId);
+    let totalRequests = 0;
+    let errorRequests = 0;
+    for (const key of buyerKeys) {
+      const logs = store.getRequestLogsByBuyerKey(key.key, 100);
+      totalRequests += logs.length;
+      errorRequests += logs.filter(l => l.statusCode >= 400).length;
+    }
+
+    const usedQuota = order.amount - (buyerKeys[0]?.remainingQuota || 0);
+    const usagePercent = order.amount > 0 ? (usedQuota / order.amount) * 100 : 0;
+    const { reason } = req.body;
+
+    if (usagePercent > 50) {
+      return res.status(400).json({
+        error: { message: `已使用 ${Math.round(usagePercent)}% 额度，超过 50% 不支持退款` },
+        usage: { totalRequests, errorRequests, usagePercent: Math.round(usagePercent) },
+      });
+    }
+
+    if (usagePercent > 20) {
+      const remainingRatio = (100 - usagePercent) / 100;
+      const refundAmount = Math.floor(order.totalPrice * remainingRatio);
+      const refundOk = store.refundFromSeller(order.buyerId, order.sellerId, refundAmount, '部分退款: ' + (reason || '买家申诉') + ` (已用${Math.round(usagePercent)}%)`);
+      if (!refundOk) return res.status(500).json({ error: { message: '退款失败，卖家余额不足或系统繁忙' } });
+      // Disable buyer keys and restore listing quota on refund
+      const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
+      buyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
+      const remainingRestore = order.amount - Math.floor(order.amount * usagePercent / 100);
+      if (remainingRestore > 0) store.updateListing(order.listingId, { remainingQuota: (store.getListingById(order.listingId)?.remainingQuota || 0) + remainingRestore });
+      store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉', refundAmount });
+      return res.json({
+        success: true, refundAmount, message: `已退还 ${refundAmount} 币（已用 ${Math.round(usagePercent)}%，退还未使用部分）`,
+        order: store.getOrderById(order.id),
+      });
+    }
+
+    // Full refund (usage < 20%)
+    const refundOk = store.refundFromSeller(order.buyerId, order.sellerId, order.totalPrice, '退款: ' + (reason || '买家申诉'));
+    if (!refundOk) return res.status(500).json({ error: { message: '退款失败，卖家余额不足或系统繁忙' } });
+    // Disable buyer keys and restore full listing quota
+    const allBuyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
+    allBuyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
+    const listing = store.getListingById(order.listingId);
+    if (listing) store.updateListing(order.listingId, { remainingQuota: (listing.remainingQuota || 0) + order.amount });
+    store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉' });
+    res.json({ success: true, order: store.getOrderById(order.id) });
+  } finally {
+    _disputeLocks.delete(orderId);
   }
-
-  // Check usage from request logs
-  const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === req.userId && k.listingId === order.listingId);
-  let totalRequests = 0;
-  let errorRequests = 0;
-  for (const key of buyerKeys) {
-    const logs = store.getRequestLogsByBuyerKey(key.key, 100);
-    totalRequests += logs.length;
-    errorRequests += logs.filter(l => l.statusCode >= 400).length;
-  }
-
-  const usedQuota = order.amount - (buyerKeys[0]?.remainingQuota || 0);
-  const usagePercent = order.amount > 0 ? (usedQuota / order.amount) * 100 : 0;
-
-  const { reason } = req.body;
-
-  // Proportional refund rules
-  if (usagePercent > 50) {
-    return res.status(400).json({
-      error: { message: `已使用 ${Math.round(usagePercent)}% 额度，超过 50% 不支持退款` },
-      usage: { totalRequests, errorRequests, usagePercent: Math.round(usagePercent) },
-    });
-  }
-
-  if (usagePercent > 20) {
-    // Partial refund: refund remaining quota only
-    const remainingRatio = (100 - usagePercent) / 100;
-    const refundAmount = Math.floor(order.totalPrice * remainingRatio);
-    store.refundCoins(order.buyerId, refundAmount, '部分退款: ' + (reason || '买家申诉') + ` (已用${Math.round(usagePercent)}%)`);
-    store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉', refundAmount });
-    return res.json({
-      success: true, refundAmount, message: `已退还 ${refundAmount} 币（已用 ${Math.round(usagePercent)}%，退还未使用部分）`,
-      order: store.getOrderById(order.id),
-    });
-  }
-
-  // Full refund (usage < 20%)
-  store.refundCoins(order.buyerId, order.totalPrice, '退款: ' + (reason || '买家申诉'));
-  store.updateOrder(order.id, { status: 'refunded', refundReason: reason || '买家申诉' });
-  res.json({ success: true, order: store.getOrderById(order.id) });
 });
 
 router.get('/orders', userAuth, (req, res) => {
@@ -901,9 +979,22 @@ router.post('/v1/chat/completions', async (req, res) => {
       method: 'POST', url: `${listing.baseUrl}/chat/completions`,
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       data: req.body, responseType: isStream ? 'stream' : 'json', timeout: 120000,
+      validateStatus: () => true, // don't throw on 4xx/5xx, handle below
     });
 
     const latency = Date.now() - requestStart;
+
+    // If upstream returned an error, don't deduct quota
+    if (resp.status >= 400) {
+      store.addRequestLog({
+        id: 'rl_' + crypto.randomUUID(), buyerKeyId: buyerKey.key, listingId: listing.id,
+        sellerId: listing.sellerId, buyerId: buyerKey.userId,
+        model: req.body.model || '', statusCode: resp.status, tokenCount: 0,
+        latency, error: `上游返回 ${resp.status}`, source: listing.baseUrl, timestamp: Date.now(), ip: req.ip,
+      });
+      return res.status(resp.status >= 500 ? 502 : resp.status).json({ error: { message: '上游服务错误' } });
+    }
+
     const newQuota = buyerKey.remainingQuota - 1;
     const updates = { remainingQuota: newQuota };
     // Auto-disable when this was the last request
@@ -938,7 +1029,11 @@ router.post('/v1/chat/completions', async (req, res) => {
         });
         res.end();
       });
-      resp.data.on('error', () => res.end());
+      resp.data.on('error', () => {
+        // Restore quota on stream error (same as non-streaming error handling)
+        store.updateMarketApiKey(buyerKey.key, { remainingQuota: buyerKey.remainingQuota });
+        res.end();
+      });
       req.on('close', () => resp.data.destroy());
     } else {
       // Non-streaming: validate and sanitize full response
@@ -966,7 +1061,7 @@ router.post('/v1/chat/completions', async (req, res) => {
       } else if (listing.pricePerToken > 0 && tokens > 0) {
         const tokenCost = calculatePrice(listing, tokens);
         const buyer = store.getUserById(buyerKey.userId);
-        if (buyer && buyer.balance >= tokenCost) {
+        if (buyer && (buyer.coins || 0) >= tokenCost) {
           processPayment(buyerKey.userId, listing.sellerId, listing.id, tokenCost);
         }
       }
@@ -982,7 +1077,7 @@ router.post('/v1/chat/completions', async (req, res) => {
       model: req.body.model || '', statusCode, tokenCount: 0,
       latency, error: err.message, source: listing.baseUrl, timestamp: Date.now(), ip: req.ip,
     });
-    res.status(statusCode).json(err.response?.data || { error: { message: `Proxy error: ${err.message}` } });
+    res.status(statusCode).json({ error: { message: `代理请求失败 (${statusCode})` } });
   }
 });
 
@@ -1037,7 +1132,7 @@ router.post('/redeem', userAuth, (req, res) => {
   redeemAttempts[limiterKey].push(now);
 
   // Auto-detect: U + 8 chars = invite code, INV- + 8 hex = old invite code, COIN- = redemption code
-  if ((trimmed.startsWith('U') && trimmed.length === 9) || (trimmed.startsWith('INV-') && trimmed.length === 12)) {
+  if ((trimmed.startsWith('U') && (trimmed.length === 9 || trimmed.length === 13)) || (trimmed.startsWith('INV-') && trimmed.length === 12)) {
     // Invite code (new U format or legacy INV- format)
     const result = store.useInviteCode(trimmed, req.userId);
     if (!result.success) return res.status(400).json({ error: { message: result.error } });

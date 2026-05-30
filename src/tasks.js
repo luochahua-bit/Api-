@@ -74,18 +74,17 @@ function generateInviteCode(userId) {
   var store = require('./store');
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
   for (var attempt = 0; attempt < 10; attempt++) {
-    var hash = crypto.createHash('sha256').update(userId + 'invite-salt-' + attempt).digest('hex');
+    var buf = crypto.randomBytes(8);
     var code = 'U';
     for (var i = 0; i < 8; i++) {
-      var idx = parseInt(hash.slice(i * 2, i * 2 + 2), 16) % chars.length;
-      code += chars[idx];
+      code += chars[buf[i] % chars.length];
     }
     // Check uniqueness
     var existing = store.getInviteCode(code);
     if (!existing) return code;
   }
-  // Fallback: append timestamp to guarantee uniqueness
-  return 'U' + crypto.randomBytes(4).toString('hex').toUpperCase();
+  // Fallback: longer code to guarantee uniqueness
+  return 'U' + crypto.randomBytes(6).toString('hex').toUpperCase();
 }
 
 /**
@@ -111,7 +110,7 @@ function isOnceTaskDone(completions, taskId) {
 function has7DayStreak(coinTransactions) {
   const usageDays = new Set();
   for (const tx of coinTransactions) {
-    if (tx.type === 'usage' || tx.type === 'api_call') {
+    if (tx.type === 'usage' || tx.type === 'api_call' || tx.type === 'spend_free') {
       usageDays.add(new Date(tx.createdAt).toISOString().slice(0, 10));
     }
   }

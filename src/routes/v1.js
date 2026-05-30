@@ -10,7 +10,7 @@ const { isFreeKey, isFreeModel, getFreeModelsForResponse, deductFreeCoins, TOKEN
 const router = Router();
 
 // Simple in-memory cache for /v1/models
-let modelsCache = { free: null, paid: null, ts: 0 };
+let modelsCache = { free: null, paid: null, freeTs: 0, paidTs: 0 };
 const MODELS_CACHE_TTL = 60000; // 60 seconds
 
 router.get('/models', (req, res) => {
@@ -18,14 +18,14 @@ router.get('/models', (req, res) => {
 
   // Free keys only see free models
   if (req.keyTier === 'free') {
-    if (!modelsCache.free || now - modelsCache.ts > MODELS_CACHE_TTL) {
+    if (!modelsCache.free || now - modelsCache.freeTs > MODELS_CACHE_TTL) {
       modelsCache.free = { object: 'list', data: getFreeModelsForResponse() };
-      modelsCache.ts = now;
+      modelsCache.freeTs = now;
     }
     return res.json(modelsCache.free);
   }
 
-  if (!modelsCache.paid || now - modelsCache.ts > MODELS_CACHE_TTL) {
+  if (!modelsCache.paid || now - modelsCache.paidTs > MODELS_CACHE_TTL) {
     const providers = providerManager.getProvidersInfo();
     modelsCache.paid = {
       object: 'list',
@@ -39,7 +39,7 @@ router.get('/models', (req, res) => {
       })),
       _providers: providers,
     };
-    modelsCache.ts = now;
+    modelsCache.paidTs = now;
   }
   res.json(modelsCache.paid);
 });
@@ -78,7 +78,7 @@ router.post('/chat/completions', async (req, res) => {
         res.write(chunk);
       });
       result.response.data.on('end', () => {
-        store.incrementStats(chunkCount);
+        store.incrementStats(Math.max(1, Math.round(byteCount / 3)));
 
         // Deduct free coins (streaming: estimate tokens from byte count)
         // ~4 chars per English token, ~2 per CJK token; use 3 as mixed-content average
@@ -133,7 +133,7 @@ router.post('/chat/completions', async (req, res) => {
       status: 'error', error: err.message, apiKey: req.apiKey,
     });
     res.status(502).json({
-      error: { message: `Proxy error: ${err.message}`, type: 'proxy_error', code: 'upstream_failure' },
+      error: { message: `代理请求失败`, type: 'proxy_error', code: 'upstream_failure' },
     });
   }
 });
@@ -146,16 +146,41 @@ router.post('/completions', async (req, res) => {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      result.response.data.pipe(res);
+
+      let chunkCount = 0;
+      let byteCount = 0;
+      result.response.data.on('data', (chunk) => {
+        chunkCount++;
+        byteCount += chunk.length;
+        res.write(chunk);
+      });
+      result.response.data.on('end', () => {
+        store.incrementStats(Math.max(1, Math.round(byteCount / 3)));
+        if (req.keyTier === 'free' && req.freeKeyUserId) {
+          deductFreeCoins(req.freeKeyUserId, Math.max(1, Math.round(byteCount / 3)));
+        }
+        logger.logRequest({
+          id: requestId, model: req.body.model, provider: result.provider,
+          status: 'streaming', tokens: chunkCount, duration: result.duration,
+          apiKey: req.apiKey,
+        });
+        res.end();
+      });
       result.response.data.on('error', () => res.end());
       req.on('close', () => result.response.data.destroy());
       return;
     }
     res.setHeader('X-Proxy-Provider', result.provider);
+    const usage = result.data?.usage;
+    const tokens = usage ? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0) : 0;
+    store.incrementStats(tokens);
+    if (req.keyTier === 'free' && req.freeKeyUserId) {
+      deductFreeCoins(req.freeKeyUserId, tokens || 1);
+    }
     res.status(result.status).json(result.data);
   } catch (err) {
     store.incrementStats(0, true);
-    res.status(502).json({ error: { message: `Proxy error: ${err.message}`, type: 'proxy_error' } });
+    res.status(502).json({ error: { message: `代理请求失败`, type: 'proxy_error' } });
   }
 });
 
@@ -163,10 +188,15 @@ router.post('/embeddings', async (req, res) => {
   try {
     const result = await proxyRequest(req, '/embeddings');
     res.setHeader('X-Proxy-Provider', result.provider);
+    if (req.keyTier === 'free' && req.freeKeyUserId) {
+      const usage = result.data?.usage;
+      const tokens = usage ? (usage.total_tokens || usage.prompt_tokens || 0) : 1;
+      deductFreeCoins(req.freeKeyUserId, tokens || 1);
+    }
     res.status(result.status).json(result.data);
   } catch (err) {
     store.incrementStats(0, true);
-    res.status(502).json({ error: { message: `Proxy error: ${err.message}`, type: 'proxy_error' } });
+    res.status(502).json({ error: { message: `代理请求失败`, type: 'proxy_error' } });
   }
 });
 
@@ -174,10 +204,13 @@ router.post('/images/generations', async (req, res) => {
   try {
     const result = await proxyRequest(req, '/images/generations');
     res.setHeader('X-Proxy-Provider', result.provider);
+    if (req.keyTier === 'free' && req.freeKeyUserId) {
+      deductFreeCoins(req.freeKeyUserId, 1); // charge 1 unit per image generation
+    }
     res.status(result.status).json(result.data);
   } catch (err) {
     store.incrementStats(0, true);
-    res.status(502).json({ error: { message: `Proxy error: ${err.message}`, type: 'proxy_error' } });
+    res.status(502).json({ error: { message: `代理请求失败`, type: 'proxy_error' } });
   }
 });
 

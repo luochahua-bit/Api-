@@ -332,26 +332,15 @@ function detectSourceLevel(baseUrl, latency, responseHeaders) {
 function processPayment(buyerId, sellerId, listingId, amount) {
   if (amount <= 0) return { success: false, error: '金额无效' };
 
-  const buyer = store.getUserById(buyerId);
-  const seller = store.getUserById(sellerId);
-  if (!buyer || !seller) return { success: false, error: '用户不存在' };
-  if ((buyer.coins || 0) < amount) return { success: false, error: '金币不足' };
-
   const { fee: platformFee } = calculatePlatformFee(amount);
+
+  // Use store's locked deductCoins for buyer (concurrency-safe)
+  const deducted = store.deductCoins(buyerId, amount, 'Token 用量扣费');
+  if (!deducted) return { success: false, error: '金币不足或系统繁忙' };
+
+  // Use store's locked addCoins for seller
   const sellerEarning = amount - platformFee;
-
-  store.updateUser(buyerId, {
-    coins: (buyer.coins || 0) - amount,
-    totalCoinSpending: (buyer.totalCoinSpending || 0) + amount,
-  });
-
-  store.updateUser(sellerId, {
-    coins: (seller.coins || 0) + sellerEarning,
-    totalCoinEarnings: (seller.totalCoinEarnings || 0) + sellerEarning,
-  });
-
-  store.addCoinTransaction(buyerId, 'usage', -amount, 'Token 用量扣费');
-  store.addCoinTransaction(sellerId, 'earning', sellerEarning, 'Token 用量收入 (平台服务费 ' + platformFee + ' 金币)');
+  store.addCoins(sellerId, sellerEarning, 'Token 用量收入 (平台服务费 ' + platformFee + ' 金币)');
 
   return { success: true };
 }

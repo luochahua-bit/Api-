@@ -67,9 +67,13 @@ function createDepositOrder(userId, usdtAmount, fromAddress) {
 function checkDepositOrder(orderId) {
   const order = store.getDepositOrder(orderId);
   if (!order) return { success: false, error: '订单不存在' };
-  if (order.status === 'expired' && Date.now() > order.expiresAt) {
+  if (order.status === 'expired') return { success: false, error: '订单已过期' };
+  if (order.status === 'pending' && order.expiresAt && Date.now() > order.expiresAt) {
+    // Proactively expire pending orders past their deadline
+    store.updateDepositOrder(orderId, { status: 'expired' });
     return { success: false, error: '订单已过期' };
   }
+  if (order.status !== 'pending') return { success: false, error: '订单状态异常: ' + order.status };
   return { success: true, order };
 }
 

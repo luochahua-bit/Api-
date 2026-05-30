@@ -1,6 +1,19 @@
 node_modules/
 data/
 .env
+.env.local
+.env.production
+.env.*.local
 *.log
+*.pem
+*.key
 
 .vercel
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+coverage/
+dist/
+build/

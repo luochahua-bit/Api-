@@ -992,11 +992,11 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                 <div>
                   <strong>${_esc(w.username || w.userId)}</strong>
-                  <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${w.coins} 币</span>
-                  <span style="font-size:14px;font-weight:700;color:var(--primary);margin-left:8px">→ ${w.usdtAmount || '?'} USDC</span>
-                  ${w.fee ? '<span style="font-size:11px;color:var(--text3);margin-left:4px">(手续费 ' + w.fee + ' 币)</span>' : ''}
+                  <span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${Number(w.coins||0)} 币</span>
+                  <span style="font-size:14px;font-weight:700;color:var(--primary);margin-left:8px">→ ${Number(w.usdtAmount||0)} USDC</span>
+                  ${w.fee ? '<span style="font-size:11px;color:var(--text3);margin-left:4px">(手续费 ' + Number(w.fee||0) + ' 币)</span>' : ''}
                 </div>
-                <span class="badge" style="background:${statusColors[w.status]}22;color:${statusColors[w.status]}">${statusLabels[w.status]}</span>
+                <span class="badge" style="background:${statusColors[w.status]||'#888'}22;color:${statusColors[w.status]||'#888'}">${_esc(statusLabels[w.status]||w.status)}</span>
               </div>
               <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">
                 收款地址：<code style="font-size:11px">${_esc(w.walletAddress || '未提供')}</code>
@@ -1007,9 +1007,9 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
               </div>
               ${w.status === 'pending' ? `
               <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-                <span style="font-size:12px;color:var(--warning);font-weight:600">需转 ${w.usdtAmount} USDC 到上方地址</span>
-                <button class="btn btn-sm btn-primary" onclick="processWithdrawal('${w.id}','approve')">已转账，批准</button>
-                <button class="btn btn-sm btn-danger" onclick="processWithdrawal('${w.id}','reject')">拒绝</button>
+                <span style="font-size:12px;color:var(--warning);font-weight:600">需转 ${Number(w.usdtAmount||0)} USDC 到上方地址</span>
+                <button class="btn btn-sm btn-primary" onclick="processWithdrawal('${_esc(w.id)}','approve')">已转账，批准</button>
+                <button class="btn btn-sm btn-danger" onclick="processWithdrawal('${_esc(w.id)}','reject')">拒绝</button>
               </div>` : ''}
             </div>
           `).join('');
@@ -1079,16 +1079,16 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const statusLabels = { pending: '待处理', completed: '已完成', expired: '已过期', cancelled: '已取消' };
         el.innerHTML = deposits.map(d => {
           const sc = statusColors[d.status] || 'var(--text3)';
-          const sl = statusLabels[d.status] || d.status;
+          const sl = statusLabels[d.status] || _esc(d.status);
           return '<div style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-secondary)">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
-            '<div><strong style="font-size:13px">' + d.usdtAmount + ' USDC → ' + d.coins + ' 币</strong> <span style="color:' + sc + ';font-size:12px">(' + sl + ')</span></div>' +
-            (d.status === 'pending' ? '<button class="btn btn-sm btn-primary" onclick="confirmDeposit(\'' + d.id + '\')">确认到账</button> <button class="btn btn-sm btn-danger" onclick="cancelDeposit(\'' + d.id + '\')">取消</button>' : '') +
+            '<div><strong style="font-size:13px">' + Number(d.usdtAmount||0) + ' USDC → ' + Number(d.coins||0) + ' 币</strong> <span style="color:' + sc + ';font-size:12px">(' + sl + ')</span></div>' +
+            (d.status === 'pending' ? '<button class="btn btn-sm btn-primary" onclick="confirmDeposit(\'' + _esc(d.id) + '\')">确认到账</button> <button class="btn btn-sm btn-danger" onclick="cancelDeposit(\'' + _esc(d.id) + '\')">取消</button>' : '') +
             '</div>' +
             '<div style="font-size:11px;color:var(--text3)">ID: ' + _esc(d.id) + ' | 用户: ' + _esc(d.userId) + '</div>' +
             '<div style="font-size:11px;color:var(--text3)">发件人: ' + _esc(d.fromAddress || '未提供') + '</div>' +
             '<div style="font-size:11px;color:var(--text3)">创建: ' + new Date(d.createdAt).toLocaleString() +
-            (d.txHash ? ' | TxID: ' + d.txHash.slice(0, 16) + '...' : '') + '</div></div>';
+            (d.txHash ? ' | TxID: ' + _esc(d.txHash.slice(0, 16)) + '...' : '') + '</div></div>';
         }).join('');
       } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + _esc(e.message) + '</div>'; }
     }
@@ -1147,22 +1147,22 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
         let html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">';
         html += '<div style="font-weight:700;margin-bottom:6px">👤 ' + _esc(data.user.username) + ' (ID: ' + _esc(data.user.id) + ')</div>';
-        html += '<div>金币: ' + data.user.coins + ' | 免费币: ' + data.user.freeCoins + '</div>';
-        html += '<div>累计充值: ' + data.summary.totalDeposited + ' USDC | 累计提现: ' + data.summary.totalWithdrawn + ' USDC</div>';
-        html += '<div>待审核提现: ' + data.summary.pendingWithdrawals + ' 笔</div>';
+        html += '<div>金币: ' + Number(data.user.coins||0) + ' | 免费币: ' + Number(data.user.freeCoins||0) + '</div>';
+        html += '<div>累计充值: ' + Number(data.summary.totalDeposited||0) + ' USDC | 累计提现: ' + Number(data.summary.totalWithdrawn||0) + ' USDC</div>';
+        html += '<div>待审核提现: ' + Number(data.summary.pendingWithdrawals||0) + ' 笔</div>';
         html += '</div>';
         if (data.deposits.length) {
           html += '<div style="font-weight:600;margin-bottom:4px">📥 充值记录</div>';
           data.deposits.forEach(d => {
             var sc = d.status === 'completed' ? 'var(--success)' : d.status === 'pending' ? 'var(--warning)' : 'var(--text3)';
-            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)">' + d.amount + ' USDC → ' + d.coins + ' 币 <span style="color:' + sc + '">(' + d.status + ')</span> ' + (d.txHash ? d.txHash.slice(0, 16) + '...' : '') + '</div>';
+            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)">' + Number(d.amount||0) + ' USDC → ' + Number(d.coins||0) + ' 币 <span style="color:' + sc + '">(' + _esc(d.status) + ')</span> ' + (d.txHash ? _esc(d.txHash.slice(0, 16)) + '...' : '') + '</div>';
           });
         }
         if (data.withdrawals.length) {
           html += '<div style="font-weight:600;margin:8px 0 4px">📤 提现记录</div>';
           data.withdrawals.forEach(w => {
             var sc = w.status === 'completed' ? 'var(--success)' : w.status === 'pending' ? 'var(--warning)' : 'var(--error)';
-            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)">' + w.coins + ' 币 → ' + w.usdtAmount + ' USDC <span style="color:' + sc + '">(' + w.status + ')</span></div>';
+            html += '<div style="padding:4px 0;border-bottom:1px solid var(--border)">' + Number(w.coins||0) + ' 币 → ' + Number(w.usdtAmount||0) + ' USDC <span style="color:' + sc + '">(' + _esc(w.status) + ')</span></div>';
           });
         }
         if (data.coinTransactions.length) {
@@ -1248,17 +1248,19 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     async function saveProvider() {
-      const name = document.getElementById('modalProviderName').value.trim();
-      const url = document.getElementById('modalProviderUrl').value.trim();
-      const key = document.getElementById('modalProviderKey').value.trim();
-      const weight = parseInt(document.getElementById('modalProviderWeight').value) || 5;
-      if (!name || !url) { showToast('名称和 URL 不能为空', 'error'); return; }
-      const isEdit = document.getElementById('modalProviderName').disabled;
-      if (isEdit) { await adminFetch('/providers/' + name, { method: 'PUT', body: JSON.stringify({ baseUrl: url, apiKey: key, weight }) }); }
-      else { await adminFetch('/providers', { method: 'POST', body: JSON.stringify({ name, baseUrl: url, apiKey: key, weight }) }); }
-      closeModal('addProviderModal');
-      loadAdminData();
-      showToast(isEdit ? '提供商已更新' : '提供商已添加');
+      try {
+        const name = document.getElementById('modalProviderName').value.trim();
+        const url = document.getElementById('modalProviderUrl').value.trim();
+        const key = document.getElementById('modalProviderKey').value.trim();
+        const weight = parseInt(document.getElementById('modalProviderWeight').value) || 5;
+        if (!name || !url) { showToast('名称和 URL 不能为空', 'error'); return; }
+        const isEdit = document.getElementById('modalProviderName').disabled;
+        if (isEdit) { await adminFetch('/providers/' + name, { method: 'PUT', body: JSON.stringify({ baseUrl: url, apiKey: key, weight }) }); }
+        else { await adminFetch('/providers', { method: 'POST', body: JSON.stringify({ name, baseUrl: url, apiKey: key, weight }) }); }
+        closeModal('addProviderModal');
+        loadAdminData();
+        showToast(isEdit ? '提供商已更新' : '提供商已添加');
+      } catch (e) { showToast('操作失败: ' + (e.message || '网络错误'), 'error'); }
     }
 
     function editProvider(name, url, key, weight) {
@@ -1271,22 +1273,29 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
 
     async function deleteProvider(name) {
       if (!confirm('确定删除提供商 "' + name + '"？')) return;
-      await adminFetch('/providers/' + name, { method: 'DELETE' });
-      loadAdminData();
-      showToast('提供商已删除', 'info');
+      try {
+        await adminFetch('/providers/' + name, { method: 'DELETE' });
+        loadAdminData();
+        showToast('提供商已删除', 'info');
+      } catch (e) { showToast('删除失败: ' + (e.message || '网络错误'), 'error'); }
     }
 
     async function createApiKey() {
-      const name = prompt('API 密钥名称（可选）：') || '未命名';
-      const res = await adminFetch('/keys', { method: 'POST', body: JSON.stringify({ name }) });
-      if (res.key) { showToast('密钥已创建: ' + res.key, 'success'); loadAdminData(); }
+      try {
+        const name = prompt('API 密钥名称（可选）：') || '未命名';
+        const res = await adminFetch('/keys', { method: 'POST', body: JSON.stringify({ name }) });
+        if (res.key) { showToast('密钥已创建: ' + res.key, 'success'); loadAdminData(); }
+        else if (res.error) { showToast(res.error.message || '创建失败', 'error'); }
+      } catch (e) { showToast('创建失败: ' + (e.message || '网络错误'), 'error'); }
     }
 
     async function deleteApiKey(key) {
       if (!confirm('确定撤销此 API 密钥？')) return;
-      await adminFetch('/keys/' + key.slice(-4), { method: 'DELETE' });
-      loadAdminData();
-      showToast('密钥已撤销', 'info');
+      try {
+        await adminFetch('/keys/' + key.slice(-4), { method: 'DELETE' });
+        loadAdminData();
+        showToast('密钥已撤销', 'info');
+      } catch (e) { showToast('撤销失败: ' + (e.message || '网络错误'), 'error'); }
     }
 
     function selectProvider(name) {
@@ -1769,7 +1778,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
               <div style="text-align:right">
                 <div style="font-weight:700;color:${o.status==='completed'?'var(--success)':o.status==='frozen'?'var(--warning)':'var(--error)'}">${o.totalPrice?.toFixed(2) || '--'}</div>
                 <span class="tag" style="background:${o.status==='completed'?'rgba(16,185,129,0.12)':o.status==='frozen'?'rgba(245,158,11,0.12)':'rgba(239,68,68,0.12)'};color:${o.status==='completed'?'var(--success)':o.status==='frozen'?'var(--warning)':'var(--error)'}">
-                  ${o.status === 'completed' ? '已完成' : o.status === 'frozen' ? '冻结中' : o.status === 'refunded' ? '已退款' : o.status}
+                  ${o.status === 'completed' ? '已完成' : o.status === 'frozen' ? '冻结中' : o.status === 'refunded' ? '已退款' : _esc(o.status)}
                 </span>
               </div>
             </div>

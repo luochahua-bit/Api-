@@ -39,7 +39,7 @@ const corsOptions = process.env.NODE_ENV === 'production'
   ? {
       origin: configuredOrigin
         ? configuredOrigin.split(',').map(o => o.trim())
-        : '*',
+        : ['https://llm-api-relay.onrender.com'],
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     }

@@ -67,9 +67,9 @@ services:
       - key: USDT_MAX_WITHDRAW
         value: "50"
       - key: ARBISCAN_API_KEY
-        value: "R75VDMTR2P5GF9UK821UATD1NGH55151TJ"
+        sync: false
       # Supabase cloud backup
       - key: SUPABASE_URL
-        value: "https://gkiwcgyalrgfkmalhqch.supabase.co"
+        sync: false
       - key: SUPABASE_KEY
         sync: false

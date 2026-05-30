@@ -500,6 +500,25 @@ class Store {
     return true;
   }
 
+  // Atomically decrement listing quota (concurrency-safe, prevents overselling)
+  decrementListingQuota(id, amount) {
+    const lockKey = 'listing_' + id;
+    if (this._locks.has(lockKey)) return false;
+    this._locks.add(lockKey);
+    try {
+      const idx = this.state.listings.findIndex(l => l.id === id);
+      if (idx === -1) return false;
+      const listing = this.state.listings[idx];
+      if ((listing.remainingQuota || 0) < amount) return false;
+      listing.remainingQuota -= amount;
+      listing.soldCount = (listing.soldCount || 0) + amount;
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(lockKey);
+    }
+  }
+
   removeListing(id) {
     const idx = this.state.listings.findIndex(l => l.id === id);
     if (idx === -1) return false;
@@ -659,6 +678,25 @@ class Store {
     }
   }
 
+  // Deduct free coins (concurrency-safe, for API usage metering)
+  spendFreeCoins(userId, amount, description) {
+    if (this._locks.has(userId)) return false;
+    this._locks.add(userId);
+    try {
+      const user = this.getUserById(userId);
+      if (!user) return false;
+      const actualDeduct = Math.min(amount, user.freeCoins || 0);
+      if (actualDeduct <= 0) return false;
+      user.freeCoins = (user.freeCoins || 0) - actualDeduct;
+      user.totalCoinSpending = (user.totalCoinSpending || 0) + actualDeduct;
+      this.addCoinTransaction(userId, 'spend_free', -actualDeduct, description);
+      this.save();
+      return true;
+    } finally {
+      this._locks.delete(userId);
+    }
+  }
+
   // Freeze coins as transaction deposit (concurrency-safe)
   freezeCoins(userId, amount, description) {
     if (this._locks.has(userId)) return false;
@@ -729,6 +767,31 @@ class Store {
     }
   }
 
+  // Refund by deducting from seller (for disputes after coins already released)
+  refundFromSeller(buyerId, sellerId, amount, description) {
+    const ids = [buyerId, sellerId].sort();
+    for (const id of ids) {
+      if (this._locks.has(id)) return false;
+      this._locks.add(id);
+    }
+    try {
+      const seller = this.getUserById(sellerId);
+      const buyer = this.getUserById(buyerId);
+      if (!seller || !buyer) return false;
+      if ((seller.coins || 0) < amount) return false;
+      seller.coins -= amount;
+      seller.totalCoinEarnings = (seller.totalCoinEarnings || 0) - amount;
+      buyer.coins = (buyer.coins || 0) + amount;
+      this.addCoinTransaction(sellerId, 'dispute_refund', -amount, '争议退款扣减: ' + description);
+      this.addCoinTransaction(buyerId, 'refund', amount, '争议退款: ' + description);
+      this.save();
+      this._triggerCoinBackup();
+      return true;
+    } finally {
+      for (const id of ids) this._locks.delete(id);
+    }
+  }
+
   // Redemption codes
   getRedemptionCodes() { return this.state.redemptionCodes; }
 
@@ -739,13 +802,28 @@ class Store {
   }
 
   useRedemptionCode(codeStr, userId) {
-    const code = this.state.redemptionCodes.find(c => c.code === codeStr && !c.usedBy);
-    if (!code) return { success: false, error: '兑换码无效或已使用' };
-    code.usedBy = userId;
-    code.usedAt = Date.now();
-    this.addCoins(userId, code.coins, '兑换码 ' + codeStr);
-    this.save();
-    return { success: true, coins: code.coins };
+    // Lock to prevent double-redemption from concurrent requests
+    const lockKey = 'redeem_' + codeStr;
+    if (this._locks.has(lockKey)) return { success: false, error: '兑换码正在处理中' };
+    this._locks.add(lockKey);
+    try {
+      const code = this.state.redemptionCodes.find(c => c.code === codeStr && !c.usedBy);
+      if (!code) return { success: false, error: '兑换码无效或已使用' };
+      // Mark as used BEFORE adding coins to prevent double-redemption
+      code.usedBy = userId;
+      code.usedAt = Date.now();
+      const added = this.addCoins(userId, code.coins, '兑换码 ' + codeStr);
+      if (!added) {
+        // Rollback: unmark the code so user can retry
+        code.usedBy = undefined;
+        code.usedAt = undefined;
+        return { success: false, error: '系统繁忙，请稍后重试' };
+      }
+      this.save();
+      return { success: true, coins: code.coins };
+    } finally {
+      this._locks.delete(lockKey);
+    }
   }
 
   // Withdrawals
@@ -989,14 +1067,21 @@ class Store {
   }
 
   useInviteCode(code, newUserId) {
-    const invite = this.state.inviteCodes.find(c => c.code === code);
-    if (!invite) return { success: false, error: '邀请码无效' };
-    if (invite.userId === newUserId) return { success: false, error: '不能使用自己的邀请码' };
-    if (invite.usedBy.includes(newUserId)) return { success: false, error: '已使用过此邀请码' };
-    if (invite.usedBy.length >= 20) return { success: false, error: '邀请码使用次数已达上限' };
-    invite.usedBy.push(newUserId);
-    this.save();
-    return { success: true, inviterId: invite.userId };
+    const lockKey = 'invite_' + code;
+    if (this._locks.has(lockKey)) return { success: false, error: '邀请码正在处理中' };
+    this._locks.add(lockKey);
+    try {
+      const invite = this.state.inviteCodes.find(c => c.code === code);
+      if (!invite) return { success: false, error: '邀请码无效' };
+      if (invite.userId === newUserId) return { success: false, error: '不能使用自己的邀请码' };
+      if (invite.usedBy.includes(newUserId)) return { success: false, error: '已使用过此邀请码' };
+      if (invite.usedBy.length >= 20) return { success: false, error: '邀请码使用次数已达上限' };
+      invite.usedBy.push(newUserId);
+      this.save();
+      return { success: true, inviterId: invite.userId };
+    } finally {
+      this._locks.delete(lockKey);
+    }
   }
 
   // ========== USDT Deposit Orders ==========

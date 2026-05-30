@@ -6,6 +6,11 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 const SITE_NAME = process.env.SITE_NAME || 'LLM API 中转站';
 const SITE_URL = process.env.SITE_URL || 'https://llm-relay.xyz';
 const EMAIL_FROM = process.env.EMAIL_FROM || `${SITE_NAME} <onboarding@resend.dev>`;
@@ -74,9 +79,9 @@ async function sendEmail(to, subject, html) {
     }
   }
 
-  // No email configured
-  console.log(`[Email] (simulated) To: ${to} | Subject: ${subject}`);
-  return { success: true, simulated: true };
+  // No email configured — log without exposing verification code
+  console.log(`[Email] (simulated) To: ${to} | Subject: ${subject.replace(/验证码|code|verify/gi, '[REDACTED]')}`);
+  return { success: true };
 }
 
 // ========== Base Layout ==========
@@ -140,10 +145,10 @@ async function sendVerificationEmail(toEmail, code) {
 async function sendFeedbackNotifyEmail(adminEmail, feedback) {
   const typeNames = { bug: '问题反馈', question: '咨询提问', suggestion: '功能建议' };
   const content = `
-    <p style="font-size:13px;color:#334155;margin:0 0 8px"><strong>用户：</strong>${feedback.username} (${feedback.email})</p>
-    <p style="font-size:13px;color:#334155;margin:0 0 8px"><strong>类型：</strong>${typeNames[feedback.type] || feedback.type}</p>
-    <p style="font-size:13px;color:#334155;margin:0 0 16px"><strong>标题：</strong>${feedback.title}</p>
-    <div style="background:#f8fafc;border-radius:8px;padding:16px;font-size:13px;color:#334155;line-height:1.6;white-space:pre-wrap">${feedback.content}</div>
+    <p style="font-size:13px;color:#334155;margin:0 0 8px"><strong>用户：</strong>${escHtml(feedback.username)} (${escHtml(feedback.email)})</p>
+    <p style="font-size:13px;color:#334155;margin:0 0 8px"><strong>类型：</strong>${escHtml(typeNames[feedback.type] || feedback.type)}</p>
+    <p style="font-size:13px;color:#334155;margin:0 0 16px"><strong>标题：</strong>${escHtml(feedback.title)}</p>
+    <div style="background:#f8fafc;border-radius:8px;padding:16px;font-size:13px;color:#334155;line-height:1.6;white-space:pre-wrap">${escHtml(feedback.content)}</div>
   `;
   const html = baseLayout(content, { title: '收到新反馈', buttonText: '查看反馈', buttonUrl: SITE_URL + '/market' });
   return sendEmail(adminEmail, `${SITE_NAME} - 新反馈: ${feedback.title}`, html);
@@ -151,8 +156,8 @@ async function sendFeedbackNotifyEmail(adminEmail, feedback) {
 
 async function sendFeedbackReplyEmail(userEmail, feedback) {
   const content = `
-    <p style="font-size:13px;color:#334155;margin:0 0 12px">您提交的反馈 <strong>"${feedback.title}"</strong> 已收到管理员回复：</p>
-    <div style="background:#f0f9ff;border-left:3px solid #3b82f6;border-radius:0 8px 8px 0;padding:16px;font-size:13px;color:#334155;line-height:1.6;white-space:pre-wrap">${feedback.reply}</div>
+    <p style="font-size:13px;color:#334155;margin:0 0 12px">您提交的反馈 <strong>"${escHtml(feedback.title)}"</strong> 已收到管理员回复：</p>
+    <div style="background:#f0f9ff;border-left:3px solid #3b82f6;border-radius:0 8px 8px 0;padding:16px;font-size:13px;color:#334155;line-height:1.6;white-space:pre-wrap">${escHtml(feedback.reply)}</div>
   `;
   const html = baseLayout(content, { title: '反馈已回复', buttonText: '查看详情', buttonUrl: SITE_URL + '/market' });
   return sendEmail(userEmail, `${SITE_NAME} - 您的反馈已回复`, html);
@@ -163,7 +168,7 @@ async function sendFeedbackReplyEmail(userEmail, feedback) {
 async function sendLoginNotifyEmail(toEmail, username, ip) {
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   const content = `
-    <p style="font-size:14px;color:#334155;margin:0 0 16px">您的账号 <strong>${username}</strong> 在新设备上登录成功。</p>
+    <p style="font-size:14px;color:#334155;margin:0 0 16px">您的账号 <strong>${escHtml(username)}</strong> 在新设备上登录成功。</p>
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px">
       <p style="font-size:13px;color:#334155;margin:0 0 8px"><strong>登录时间：</strong>${now}</p>
       <p style="font-size:13px;color:#334155;margin:0"><strong>IP 地址：</strong>${ip}</p>
