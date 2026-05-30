@@ -233,6 +233,15 @@ if (!process.env.VERCEL) {
 
     healthCheck.start();
 
+    // Keep-alive: self-ping to prevent Render free tier cold start (502)
+    if (process.env.NODE_ENV === 'production') {
+      const SELF_URL = process.env.RENDER_EXTERNAL_URL || `https://llm-api-relay.onrender.com`;
+      setInterval(() => {
+        require('https').get(`${SELF_URL}/health`, { timeout: 10000 }, () => {}).on('error', () => {});
+      }, 10 * 60 * 1000); // every 10 minutes
+      console.log(`  Keep-alive: pinging ${SELF_URL}/health every 10min`);
+    }
+
     // Start USDT deposit monitor
     const usdtPayment = require('./services/usdtPayment');
     usdtPayment.startMonitor();
