@@ -1641,7 +1641,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       document.getElementById('userAvatar').textContent = (currentUser.username || '?')[0].toUpperCase();
       document.getElementById('userDisplayName').textContent = currentUser.username;
       document.getElementById('userRole').textContent = currentUser.role === 'seller' ? '卖家' : '买家';
-      document.getElementById('uBalance').textContent = (currentUser.balance || 0).toFixed(2);
+      document.getElementById('uBalance').textContent = (currentUser.coins || 0);
       document.getElementById('uFrozen').textContent = (currentUser.frozenBalance || 0).toFixed(2);
 
       // Load orders & transactions for stats
