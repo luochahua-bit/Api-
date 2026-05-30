@@ -127,7 +127,8 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ADMIN_JWT_SECRET } = require('./middleware/adminAuth');
 const ADMIN_PANEL_PASSWORD = config.adminPassword; // Use env var, not hardcoded
-const ADMIN_USERS = (process.env.ADMIN_USERS || 'luo').split(',');
+const ADMIN_USERS = (process.env.ADMIN_USERS || 'luo').split(',').map(s => s.trim());
+const SUPPORT_USERS = (process.env.SUPPORT_USERS || '').split(',').map(s => s.trim()).filter(Boolean);
 const adminLoginAttempts = {};
 setInterval(() => {
   const cutoff = Date.now() - 300000;
@@ -153,7 +154,12 @@ app.post('/api/admin/login', (req, res) => {
     const decoded = jwt.verify(userToken, JWT_SECRET);
     const user = store.getUserById(decoded.userId);
     if (!user || !user.enabled) return res.status(403).json({ error: { message: '用户未登录或已被禁用' } });
-    if (!ADMIN_USERS.includes(user.username)) return res.status(403).json({ error: { message: '此账号没有管理员权限' } });
+    const isAdmin = ADMIN_USERS.includes(user.username);
+    const isSupport = SUPPORT_USERS.includes(user.username);
+    if (!isAdmin && !isSupport) return res.status(403).json({ error: { message: '此账号没有管理权限' } });
+    // Store role for JWT signing below
+    req._adminRole = isAdmin ? 'admin' : 'support';
+    req._adminUsername = user.username;
   } catch (e) {
     return res.status(401).json({ error: { message: '请先登录用户账号' } });
   }
@@ -164,7 +170,7 @@ app.post('/api/admin/login', (req, res) => {
   if (!equal) {
     return res.status(401).json({ error: { message: '管理员密码错误' } });
   }
-  res.json({ success: true, token: jwt.sign({ role: 'admin' }, ADMIN_JWT_SECRET, { expiresIn: '4h' }) });
+  res.json({ success: true, token: jwt.sign({ role: req._adminRole, username: req._adminUsername }, ADMIN_JWT_SECRET, { expiresIn: '4h' }) });
 });
 
 // Admin routes (with IP whitelist in production)

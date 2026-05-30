@@ -801,6 +801,11 @@ class Store {
     return true;
   }
 
+  removeRedemptionCode(codeStr) {
+    this.state.redemptionCodes = this.state.redemptionCodes.filter(c => c.code !== codeStr);
+    this.save();
+  }
+
   useRedemptionCode(codeStr, userId) {
     // Lock to prevent double-redemption from concurrent requests
     const lockKey = 'redeem_' + codeStr;

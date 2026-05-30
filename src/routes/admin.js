@@ -5,17 +5,21 @@ const config = require('../config');
 const store = require('../store');
 const providerManager = require('../services/provider');
 const logger = require('../services/logger');
+const { requireAdmin } = require('../middleware/adminAuth');
 
 const router = Router();
 
-// Login endpoint is now in index.js (before adminAuth middleware)
+// Get current admin role (for frontend permission checks)
+router.get('/role', (req, res) => {
+  res.json({ role: req.adminRole, username: req.adminUsername });
+});
 
-// Providers
-router.get('/providers', (req, res) => {
+// Providers (admin only)
+router.get('/providers', requireAdmin, (req, res) => {
   res.json({ providers: providerManager.getProvidersInfo() });
 });
 
-router.post('/providers', (req, res) => {
+router.post('/providers', requireAdmin, (req, res) => {
   const { name, baseUrl, apiKey, weight, enabled } = req.body;
   if (!name || !baseUrl) {
     return res.status(400).json({ error: { message: 'Name and baseUrl are required' } });
@@ -29,7 +33,7 @@ router.post('/providers', (req, res) => {
   res.json({ success: true, message: 'Provider added' });
 });
 
-router.put('/providers/:name', (req, res) => {
+router.put('/providers/:name', requireAdmin, (req, res) => {
   const { name } = req.params;
   const changes = req.body;
   const success = providerManager.updateProvider(name, changes);
@@ -39,7 +43,7 @@ router.put('/providers/:name', (req, res) => {
   res.json({ success: true, message: 'Provider updated' });
 });
 
-router.delete('/providers/:name', (req, res) => {
+router.delete('/providers/:name', requireAdmin, (req, res) => {
   const { name } = req.params;
   const success = providerManager.removeProvider(name);
   if (!success) {
@@ -48,7 +52,7 @@ router.delete('/providers/:name', (req, res) => {
   res.json({ success: true, message: 'Provider removed' });
 });
 
-router.post('/providers/:name/test', async (req, res) => {
+router.post('/providers/:name/test', requireAdmin, async (req, res) => {
   const { name } = req.params;
   const providers = store.getProviders();
   const provider = providers.find(p => p.name === name);
@@ -69,14 +73,14 @@ router.post('/providers/:name/test', async (req, res) => {
   }
 });
 
-router.post('/providers/:name/reset-breaker', (req, res) => {
+router.post('/providers/:name/reset-breaker', requireAdmin, (req, res) => {
   const { name } = req.params;
   providerManager.resetCircuitBreaker(name);
   res.json({ success: true, message: 'Circuit breaker reset' });
 });
 
 // API Keys
-router.get('/keys', (req, res) => {
+router.get('/keys', requireAdmin, (req, res) => {
   const keys = store.getApiKeys().map(k => ({
     ...k,
     key: k.key.slice(0, 8) + '...' + k.key.slice(-4),
@@ -84,7 +88,7 @@ router.get('/keys', (req, res) => {
   res.json({ keys });
 });
 
-router.post('/keys', (req, res) => {
+router.post('/keys', requireAdmin, (req, res) => {
   const { name } = req.body;
   const key = `sk-${crypto.randomBytes(24).toString('hex')}`;
   const apiKey = {
@@ -98,7 +102,7 @@ router.post('/keys', (req, res) => {
   res.json({ success: true, key, message: 'API key created. Save it now, it won\'t be shown again.' });
 });
 
-router.put('/keys/:key', (req, res) => {
+router.put('/keys/:key', requireAdmin, (req, res) => {
   const { key } = req.params;
   const { enabled } = req.body;
   const keys = store.getApiKeys();
@@ -110,7 +114,7 @@ router.put('/keys/:key', (req, res) => {
   res.json({ success: true, message: 'API key updated' });
 });
 
-router.delete('/keys/:key', (req, res) => {
+router.delete('/keys/:key', requireAdmin, (req, res) => {
   const { key } = req.params;
   const keys = store.getApiKeys();
   const actualKey = keys.find(k => k.key.endsWith(key.slice(-4)));
@@ -122,7 +126,7 @@ router.delete('/keys/:key', (req, res) => {
 });
 
 // Logs
-router.get('/logs', (req, res) => {
+router.get('/logs', requireAdmin, (req, res) => {
   const limit = parseInt(req.query.limit) || 100;
   const model = req.query.model;
   const provider = req.query.provider;
@@ -132,7 +136,7 @@ router.get('/logs', (req, res) => {
   res.json({ logs });
 });
 
-router.delete('/logs', (req, res) => {
+router.delete('/logs', requireAdmin, (req, res) => {
   logger.clearLogs();
   res.json({ success: true, message: 'Logs cleared' });
 });
@@ -169,7 +173,7 @@ router.get('/users', (req, res) => {
 });
 
 // Enable/disable user
-router.put('/users/:id/toggle', (req, res) => {
+router.put('/users/:id/toggle', requireAdmin, (req, res) => {
   const user = store.getUserById(req.params.id);
   if (!user) return res.status(404).json({ error: { message: '用户不存在' } });
   const newEnabled = !user.enabled;
@@ -409,6 +413,55 @@ router.post('/disputes/:id/reject', (req, res) => {
   });
 
   res.json({ success: true, message: '申诉已驳回，订单恢复为已完成' });
+});
+
+// ========== Redemption Codes (admin only) ==========
+
+// List all redemption codes
+router.get('/redeem-codes', requireAdmin, (req, res) => {
+  const codes = store.getRedemptionCodes ? store.getRedemptionCodes() : [];
+  const enriched = codes.map(c => {
+    const usedByUser = c.usedBy ? store.getUserById(c.usedBy) : null;
+    return {
+      ...c,
+      usedByName: usedByUser?.username || c.usedBy || null,
+    };
+  }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ data: enriched });
+});
+
+// Create redemption code(s)
+router.post('/redeem-codes', requireAdmin, (req, res) => {
+  const { coins, count = 1 } = req.body;
+  if (!coins || coins <= 0) return res.status(400).json({ error: { message: '金币数量必须大于 0' } });
+  if (count < 1 || count > 50) return res.status(400).json({ error: { message: '数量范围 1-50' } });
+
+  const codes = [];
+  for (let i = 0; i < count; i++) {
+    const code = 'COIN-' + crypto.randomBytes(6).toString('hex').toUpperCase();
+    store.addRedemptionCode({
+      code,
+      coins: parseFloat(coins),
+      createdAt: Date.now(),
+      createdBy: req.adminUsername || 'admin',
+    });
+    codes.push(code);
+  }
+
+  res.json({ success: true, codes, message: `已创建 ${codes.length} 个兑换码，每个 ${coins} 金币` });
+});
+
+// Delete a redemption code (only if unused)
+router.delete('/redeem-codes/:code', requireAdmin, (req, res) => {
+  const codes = store.getRedemptionCodes ? store.getRedemptionCodes() : [];
+  const code = codes.find(c => c.code === req.params.code);
+  if (!code) return res.status(404).json({ error: { message: '兑换码不存在' } });
+  if (code.usedBy) return res.status(400).json({ error: { message: '已使用的兑换码不能删除' } });
+  // Remove from store (need to add this method or do it directly)
+  if (store.removeRedemptionCode) {
+    store.removeRedemptionCode(req.params.code);
+  }
+  res.json({ success: true, message: '兑换码已删除' });
 });
 
 module.exports = router;
