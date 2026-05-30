@@ -235,12 +235,12 @@ textarea { min-height: 60px; resize: vertical; }
   background: linear-gradient(135deg, var(--primary), #a855f7);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.hero p { color: var(--text2); font-size: 15px; margin-bottom: 20px; max-width: 600px; margin-left: auto; margin-right: auto; }
+.hero p { color: var(--text2); font-size: 14px; margin-bottom: 16px; max-width: 600px; margin-left: auto; margin-right: auto; }
 .hero-buttons { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
-.hero-stats { display: flex; gap: 32px; justify-content: center; margin-top: 20px; }
+.hero-stats { display: flex; gap: 32px; justify-content: center; margin-top: 16px; }
 .hero-stat { text-align: center; }
 .hero-stat .num { font-size: 24px; font-weight: 800; color: var(--primary); }
-.hero-stat .label { font-size: 12px; color: var(--text3); }
+.hero-stat .label { font-size: 11px; color: var(--text3); }
 
 /* ===== Provider Icons ===== */
 .icon-provider {
@@ -297,9 +297,9 @@ textarea { min-height: 60px; resize: vertical; }
 
 /* ===== Escrow Status ===== */
 .escrow-status { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
-.escrow-completed { background: rgba(34,197,94,.12); color: var(--success); }
-.escrow-frozen { background: rgba(245,158,11,.12); color: var(--warning); }
-.escrow-refunded { background: rgba(239,68,68,.12); color: var(--danger); }
+.escrow-completed { background: rgba(34,197,94,.1); color: #22c55e; }
+.escrow-frozen { background: rgba(245,158,11,.1); color: #f59e0b; }
+.escrow-refunded { background: rgba(239,68,68,.1); color: #ef4444; }
 
 /* ===== Transaction Item ===== */
 .tx-item {
