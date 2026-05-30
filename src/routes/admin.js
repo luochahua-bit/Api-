@@ -317,4 +317,61 @@ router.put('/withdrawals/:id/reject', (req, res) => {
   res.json({ success: true, message: `提现已拒绝，${withdrawal.coins} 金币已退还` });
 });
 
+// ========== Dispute Management ==========
+
+// Get all disputed/refunded orders
+router.get('/disputes', (req, res) => {
+  const orders = store.getOrders();
+  const disputes = orders
+    .filter(o => o.status === 'refunded' || o.refundReason)
+    .map(o => {
+      const buyer = store.getUserById(o.buyerId);
+      const seller = store.getUserById(o.sellerId);
+      const listing = store.getListingById(o.listingId);
+      return {
+        ...o,
+        buyerName: buyer?.username || o.buyerId,
+        sellerName: seller?.username || o.sellerId,
+        listingDesc: listing?.description || o.listingId,
+      };
+    })
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ data: disputes });
+});
+
+// Approve dispute (confirm refund was correct — no action needed, already refunded)
+router.post('/disputes/:id/approve', (req, res) => {
+  const order = store.getOrderById(req.params.id);
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.status === 'refunded') {
+    return res.json({ success: true, message: '退款已生效，无需重复操作' });
+  }
+  // If order is still frozen, process full refund
+  if (order.status === 'frozen') {
+    const refundOk = store.refundCoins(order.buyerId, order.totalPrice, '管理员审批退款: ' + (order.refundReason || ''));
+    if (!refundOk) return res.status(500).json({ error: { message: '退款失败' } });
+    // Restore listing quota
+    const listing = store.getListingById(order.listingId);
+    if (listing) store.updateListing(order.listingId, { remainingQuota: (listing.remainingQuota || 0) + order.amount });
+    // Disable buyer keys
+    const buyerKeys = store.getMarketApiKeys().filter(k => k.userId === order.buyerId && k.listingId === order.listingId);
+    buyerKeys.forEach(k => store.updateMarketApiKey(k.key, { enabled: false }));
+    store.updateOrder(order.id, { status: 'refunded', refundReason: '管理员批准退款' });
+    return res.json({ success: true, message: '已批准退款，金币已退回买家' });
+  }
+  res.status(400).json({ error: { message: '订单状态不支持此操作: ' + order.status } });
+});
+
+// Reject dispute (if order was refunded, reverse the refund)
+router.post('/disputes/:id/reject', (req, res) => {
+  const order = store.getOrderById(req.params.id);
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.status !== 'refunded') {
+    return res.status(400).json({ error: { message: '只能驳回已退款的申诉' } });
+  }
+  // Mark as rejected (admin decided refund was wrong)
+  store.updateOrder(order.id, { status: 'dispute_rejected', refundReason: (order.refundReason || '') + ' [管理员驳回: ' + (req.body.reason || '无理由') + ']' });
+  res.json({ success: true, message: '申诉已驳回' });
+});
+
 module.exports = router;

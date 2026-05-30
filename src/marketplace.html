@@ -431,6 +431,22 @@ textarea{min-height:60px;resize:vertical}
   </div>
 </div>
 
+<!-- Dispute Modal -->
+<div id="disputeModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('disputeModal')">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeModal('disputeModal')">&times;</button>
+    <h3 style="margin-bottom:12px">申诉退款</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px">请说明退款原因，我们会尽快处理：</p>
+    <div class="form-group">
+      <textarea id="disputeReason" rows="3" placeholder="例如：Key 无法使用、模型不匹配..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:13px;outline:none;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-outline" onclick="closeModal('disputeModal')" style="flex:1">取消</button>
+      <button id="disputeSubmitBtn" class="btn btn-primary" onclick="submitDispute()" style="flex:1">提交申诉</button>
+    </div>
+  </div>
+</div>
+
 <div id="payModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('payModal')">
   <div class="modal" style="max-width:420px;text-align:center">
     <button class="modal-close" onclick="closeModal('payModal')">&times;</button>
@@ -1143,7 +1159,9 @@ async function loadOrders(role){
 }
 
 async function confirmOrder(id){try{await api('/orders/'+id+'/confirm',{method:'POST'});toast('已确认收货，资金已转给卖家');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
-async function disputeOrder(id){var reason=prompt('请输入申诉原因：');if(!reason)return;try{await api('/orders/'+id+'/dispute',{method:'POST',body:JSON.stringify({reason:reason})});toast('申诉成功，资金已退回');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}}
+var _pendingDisputeId=null;
+async function disputeOrder(id){_pendingDisputeId=id;document.getElementById('disputeReason').value='';showModal('disputeModal');}
+async function submitDispute(){var reason=document.getElementById('disputeReason').value.trim();if(!reason){toast('请填写退款原因','error');return;}var btn=document.getElementById('disputeSubmitBtn');btn.disabled=true;btn.textContent='提交中...';try{await api('/orders/'+_pendingDisputeId+'/dispute',{method:'POST',body:JSON.stringify({reason:reason})});toast('申诉成功，资金已退回');closeModal('disputeModal');await checkAuth();loadOrders('buyer');}catch(e){toast(e.message,'error');}finally{btn.disabled=false;btn.textContent='提交申诉';}}
 
 // ========== Tasks ==========
 async function loadTasks(){
