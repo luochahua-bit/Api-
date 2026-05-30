@@ -1,9 +1,11 @@
 /* LLM API Relay - API Communication Layer */
 /* Extracted from marketplace.html */
+/* Note: API, token, currentUser are declared in inline script.
+   We assign here as fallback only — don't use 'var' to avoid overwriting. */
 
-var API = '/api/market';
-var token = localStorage.getItem('market_token');
-var currentUser = null;
+if (typeof API === 'undefined') var API = '/api/market';
+if (typeof token === 'undefined') var token = localStorage.getItem('market_token');
+if (typeof currentUser === 'undefined') var currentUser = null;
 
 async function api(path, opts) {
   opts = opts || {};

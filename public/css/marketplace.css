@@ -308,7 +308,6 @@ textarea { min-height: 60px; resize: vertical; }
 }
 
 /* ===== Loading ===== */
-@keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
   width: 36px; height: 36px; border: 3px solid var(--border);
   border-top-color: var(--primary); border-radius: 50%;
@@ -331,45 +330,6 @@ textarea { min-height: 60px; resize: vertical; }
   opacity: 0.25 !important; pointer-events: none !important;
 }
 
-/* ===== Responsive: Tablet (768px) ===== */
-@media (max-width: 768px) {
-  header .container { flex-direction: column; gap: 8px; }
-  nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: wrap; justify-content: center; }
-  nav::-webkit-scrollbar { display: none; }
-  .listing-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important; }
-  .grid-5 { grid-template-columns: repeat(2, 1fr); }
-  .grid-3 { grid-template-columns: 1fr 1fr; }
-  .grid-2 { grid-template-columns: 1fr; }
-  .modal { max-width: 95vw !important; }
-  .hero-stats { flex-wrap: wrap; gap: 20px; }
-  .listing-card .card-footer { flex-direction: column; align-items: flex-start; gap: 6px; }
-}
-
-/* ===== Responsive: Mobile (480px) ===== */
-@media (max-width: 480px) {
-  header { padding: 8px 0 !important; }
-  header .container { padding: 0 10px !important; }
-  .logo { font-size: 15px !important; }
-  nav { gap: 0; }
-  nav button { padding: 8px 10px !important; font-size: 12px !important; white-space: nowrap; }
-  .container { padding: 0 10px !important; }
-  .hero { padding: 24px 12px 20px !important; }
-  .hero h1 { font-size: 20px !important; }
-  .hero p { font-size: 12px !important; }
-  .hero-buttons { flex-direction: column; gap: 6px !important; }
-  .hero-stats { gap: 16px !important; flex-wrap: wrap; }
-  .hero-stat .num { font-size: 18px !important; }
-  .listing-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
-  .card { padding: 12px !important; }
-  .search-bar { flex-direction: column; }
-  .search-bar input { min-width: 100% !important; font-size: 16px; }
-  .search-bar select { width: 100%; }
-  .grid-5 { grid-template-columns: 1fr; }
-  .grid-3 { grid-template-columns: 1fr; }
-  .grid-2 { grid-template-columns: 1fr; }
-  .modal { padding: 16px !important; max-height: 90vh !important; border-radius: 12px !important; }
-  nav button, .btn, [onclick] { min-height: 44px; }
-  .btn-sm { padding: 8px 12px !important; font-size: 12px !important; }
-  .header-right { gap: 4px; }
-  .theme-btn { width: 36px; height: 36px; }
-}
+/* ===== Responsive ===== */
+/* Mobile breakpoints handled by /fixes/marketplace-styles.css (loads after this file) */
+/* Only add rules here that marketplace-styles.css does NOT cover */

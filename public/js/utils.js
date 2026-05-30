@@ -4,7 +4,7 @@
 // Provider detection
 var PROVIDER_ICONS = {
   openrouter: 'OR', groq: 'GQ', cerebras: 'CB', google: 'GG',
-  sambanova: 'SN', mistral: 'MI', nvidia: 'NV', cohere: 'CH', github: 'GH'
+  sambanova: 'SN', mistral: 'MI', nvidia: 'NV', cohere: 'CO', github: 'GH'
 };
 var PROVIDER_CLS = {
   openrouter: 'provider-openrouter', groq: 'provider-groq', cerebras: 'provider-cerebras',
@@ -12,18 +12,9 @@ var PROVIDER_CLS = {
   nvidia: 'provider-nvidia', cohere: 'provider-cohere', github: 'provider-github'
 };
 
-function getProvider(url) {
-  if (!url) return 'default';
-  url = url.toLowerCase();
-  if (url.includes('openrouter')) return 'openrouter';
-  if (url.includes('groq')) return 'groq';
-  if (url.includes('cerebras')) return 'cerebras';
-  if (url.includes('google') || url.includes('generativelanguage')) return 'google';
-  if (url.includes('sambanova')) return 'sambanova';
-  if (url.includes('mistral')) return 'mistral';
-  if (url.includes('nvidia') || url.includes('nim')) return 'nvidia';
-  if (url.includes('cohere')) return 'cohere';
-  if (url.includes('github')) return 'github';
+function getProvider(name) {
+  var n = (name || '').toLowerCase();
+  for (var k in PROVIDER_ICONS) { if (n.includes(k)) return k; }
   return 'default';
 }
 function getProviderIcon(name) { var k = getProvider(name); return PROVIDER_ICONS[k] || 'AI'; }
@@ -68,7 +59,7 @@ function fallbackCopy(text) {
   var ta = document.createElement('textarea');
   ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
   document.body.appendChild(ta); ta.select();
-  try { document.execCommand('copy'); toast('已复制', 'success'); } catch (e) { toast('复制失败', 'error'); }
+  try { document.execCommand('copy'); toast('已复制', 'success'); } catch (e) { prompt('请手动复制：', text); }
   ta.remove();
 }
 
