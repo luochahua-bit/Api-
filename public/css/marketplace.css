@@ -226,9 +226,9 @@ textarea { min-height: 60px; resize: vertical; }
 
 /* ===== Hero ===== */
 .hero {
-  text-align: center; padding: 48px 20px 32px;
-  background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(168,85,247,.08));
-  border-radius: 16px; margin-bottom: 24px;
+  text-align: center; padding: 48px 16px 32px;
+  background: linear-gradient(135deg, rgba(99,102,241,.08), rgba(168,85,247,.06));
+  border-radius: 16px; margin-bottom: 24px; border: 1px solid var(--border);
 }
 .hero h1 { font-size: 28px; margin-bottom: 12px; }
 .hero p { color: var(--text2); font-size: 15px; margin-bottom: 20px; max-width: 600px; margin-left: auto; margin-right: auto; }
@@ -271,16 +271,24 @@ textarea { min-height: 60px; resize: vertical; }
 }
 .theme-btn:hover { border-color: var(--primary); }
 
+/* ===== Size Toggle ===== */
+.size-btn {
+  padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg2); color: var(--text2); cursor: pointer;
+  font-size: 12px; transition: .2s;
+}
+.size-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
 /* ===== Key Display ===== */
 .key-display {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px; margin: 12px 0; font-family: monospace; font-size: 13px;
+  background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; font-family: monospace; font-size: 13px;
+  word-break: break-all; position: relative; margin: 12px 0;
 }
 .copy-btn {
-  padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border);
-  background: var(--bg2); color: var(--text2); cursor: pointer; font-size: 12px;
-  white-space: nowrap;
+  position: absolute; top: 8px; right: 8px;
+  background: var(--primary); color: #fff; border: none; border-radius: 6px;
+  padding: 4px 10px; cursor: pointer; font-size: 11px;
 }
 
 /* ===== Escrow Status ===== */
