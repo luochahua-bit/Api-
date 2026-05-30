@@ -53,7 +53,7 @@ describe('Admin login', () => {
   test('accepts correct password and returns JWT', async () => {
     const res = await request(app)
       .post('/api/admin/login')
-      .send({ password: '20060303', userToken: testUserToken });
+      .send({ password: 'test-admin-password-123', userToken: testUserToken });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.token).toBeDefined();
@@ -78,7 +78,7 @@ describe('Admin routes require auth', () => {
   test('returns data with valid admin token', async () => {
     const loginRes = await request(app)
       .post('/api/admin/login')
-      .send({ password: '20060303', userToken: testUserToken });
+      .send({ password: 'test-admin-password-123', userToken: testUserToken });
     const token = loginRes.body.token;
 
     const res = await request(app)

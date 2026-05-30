@@ -1063,7 +1063,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
             '<div style="font-size:11px;color:var(--text3)">' + _esc(u.email) + ' | 金币:' + u.coins + ' 免费:' + u.freeCoins + '</div></div>' +
             '<button class="btn btn-sm ' + btnClass + '" onclick="toggleUser(\'' + u.id + '\',\'' + _esc(u.username) + '\')">' + btnText + '</button></div>';
         }).join('');
-      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + _esc(e.message) + '</div>'; }
     }
 
     async function loadDeposits() {
@@ -1085,12 +1085,12 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
             '<div><strong style="font-size:13px">' + d.usdtAmount + ' USDC → ' + d.coins + ' 币</strong> <span style="color:' + sc + ';font-size:12px">(' + sl + ')</span></div>' +
             (d.status === 'pending' ? '<button class="btn btn-sm btn-primary" onclick="confirmDeposit(\'' + d.id + '\')">确认到账</button> <button class="btn btn-sm btn-danger" onclick="cancelDeposit(\'' + d.id + '\')">取消</button>' : '') +
             '</div>' +
-            '<div style="font-size:11px;color:var(--text3)">ID: ' + d.id + ' | 用户: ' + d.userId + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">ID: ' + _esc(d.id) + ' | 用户: ' + _esc(d.userId) + '</div>' +
             '<div style="font-size:11px;color:var(--text3)">发件人: ' + _esc(d.fromAddress || '未提供') + '</div>' +
             '<div style="font-size:11px;color:var(--text3)">创建: ' + new Date(d.createdAt).toLocaleString() +
             (d.txHash ? ' | TxID: ' + d.txHash.slice(0, 16) + '...' : '') + '</div></div>';
         }).join('');
-      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + _esc(e.message) + '</div>'; }
     }
 
     async function cancelDeposit(id) {
@@ -1146,7 +1146,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const data = await resp.json();
         if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
         let html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">';
-        html += '<div style="font-weight:700;margin-bottom:6px">👤 ' + _esc(data.user.username) + ' (ID: ' + data.user.id + ')</div>';
+        html += '<div style="font-weight:700;margin-bottom:6px">👤 ' + _esc(data.user.username) + ' (ID: ' + _esc(data.user.id) + ')</div>';
         html += '<div>金币: ' + data.user.coins + ' | 免费币: ' + data.user.freeCoins + '</div>';
         html += '<div>累计充值: ' + data.summary.totalDeposited + ' USDC | 累计提现: ' + data.summary.totalWithdrawn + ' USDC</div>';
         html += '<div>待审核提现: ' + data.summary.pendingWithdrawals + ' 笔</div>';
@@ -1173,7 +1173,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           });
         }
         el.innerHTML = html;
-      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + _esc(e.message) + '</div>'; }
     }
 
     async function traceOrder() {
@@ -1188,11 +1188,11 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
         const data = await resp.json();
         if (data.error) { el.innerHTML = '<div style="color:var(--error)">' + _esc(data.error.message) + '</div>'; return; }
         let html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px">';
-        html += '<div style="font-weight:700;margin-bottom:6px">📋 订单 ' + data.order.id + '</div>';
+        html += '<div style="font-weight:700;margin-bottom:6px">📋 订单 ' + _esc(data.order.id) + '</div>';
         html += '<div>用户: ' + (data.user ? _esc(data.user.username) : '未知') + '</div>';
         html += '<div>金额: ' + data.order.usdtAmount + ' USDC → ' + data.order.coins + ' 币</div>';
-        html += '<div>状态: ' + data.order.status + '</div>';
-        if (data.order.txHash) html += '<div>交易哈希: ' + data.order.txHash + '</div>';
+        html += '<div>状态: ' + _esc(data.order.status) + '</div>';
+        if (data.order.txHash) html += '<div>交易哈希: ' + _esc(data.order.txHash) + '</div>';
         html += '</div>';
         if (data.relatedTransactions.length) {
           html += '<div style="font-weight:600;margin:8px 0 4px">相关流水</div>';
@@ -1201,7 +1201,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           });
         }
         el.innerHTML = html;
-      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + e.message + '</div>'; }
+      } catch (e) { el.innerHTML = '<div style="color:var(--error)">' + _esc(e.message) + '</div>'; }
     }
 
     async function adminFetch(path, opts = {}) {

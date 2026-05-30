@@ -14,7 +14,7 @@ const adminAuth = require('../middleware/adminAuth');
 const { JWT_SECRET } = require('../middleware/userAuth');
 const {
   genId, encryptKey, decryptKey, testProviderKey, verifyModelsExist, verifyModelIdentity,
-  processMarketRequest, calculatePrice,
+  processMarketRequest, calculatePrice, calculateFeeWithCredits,
   topUpBalance, processPayment,
   detectSourceLevel,
 } = require('../services/marketplace');
@@ -233,6 +233,14 @@ router.get('/tasks', userAuth, (req, res) => {
 
 // Claim task reward — with anti-abuse rate limiting
 const taskClaimLimiter = {};
+// Clean up task claim limiter every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - ONE_MINUTE;
+  for (const key in taskClaimLimiter) {
+    taskClaimLimiter[key] = taskClaimLimiter[key].filter(t => t > cutoff);
+    if (!taskClaimLimiter[key].length) delete taskClaimLimiter[key];
+  }
+}, FIVE_MINUTES);
 router.post('/tasks/:taskId/claim', userAuth, (req, res) => {
   const { taskId } = req.params;
 
@@ -1002,6 +1010,14 @@ router.get('/coin/transactions', userAuth, (req, res) => {
 
 // Rate limiter for redemption (5 attempts per minute per user)
 const redeemAttempts = {};
+// Clean up redeem attempts every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - ONE_MINUTE;
+  for (const key in redeemAttempts) {
+    redeemAttempts[key] = redeemAttempts[key].filter(t => t > cutoff);
+    if (!redeemAttempts[key].length) delete redeemAttempts[key];
+  }
+}, FIVE_MINUTES);
 
 // Unified code redemption — auto-detects invite code vs redemption code
 router.post('/redeem', userAuth, (req, res) => {
@@ -1101,7 +1117,7 @@ router.post('/coin/withdraw', userAuth, (req, res) => {
   if (!walletAddress) return res.status(400).json({ error: { message: '请填写 USDC-Arbitrum 收款地址' } });
 
   // Validate wallet address format
-  const addrCheck = validateTronAddress(walletAddress);
+  const addrCheck = validateEthAddress(walletAddress);
   if (!addrCheck.valid) {
     return res.status(400).json({ error: { message: addrCheck.message } });
   }
@@ -1290,7 +1306,7 @@ function calculateWithdrawalFee(coins, feeCredits) {
 }
 
 // Validate Arbitrum/Ethereum address format
-function validateTronAddress(address) {
+function validateEthAddress(address) {
   if (!address || typeof address !== 'string') {
     return { valid: false, message: '地址不能为空' };
   }
@@ -1307,50 +1323,42 @@ function validateTronAddress(address) {
   return { valid: true, message: '地址格式正确' };
 }
 
-// Address validation endpoint (format + on-chain check)
+// Address validation endpoint (format + on-chain check via Arbitrum)
 router.post('/validate-address', userAuth, async (req, res) => {
   const { address } = req.body;
 
   // Layer 1: Format check
-  const formatCheck = validateTronAddress(address);
+  const formatCheck = validateEthAddress(address);
   if (!formatCheck.valid) {
     return res.json({ ...formatCheck, onChain: null });
   }
 
-  // Layer 2: On-chain check
+  // Layer 2: On-chain check via Etherscan V2 (Arbitrum)
   try {
     const axios = require('axios');
-    const resp = await axios.get(`https://api.trongrid.io/v1/accounts/${address.trim()}`, { timeout: 10000 });
-    const account = resp.data?.data?.[0];
+    const ARBISCAN_KEY = process.env.ARBISCAN_API_KEY || '';
+    const params = {
+      module: 'account',
+      action: 'balance',
+      address: address.trim(),
+      chainid: 42161,
+    };
+    if (ARBISCAN_KEY) params.apikey = ARBISCAN_KEY;
+    const resp = await axios.get('https://api.etherscan.io/v2/api', { params, timeout: 10000 });
+    const balance = resp.data?.result;
 
-    if (!account) {
+    if (!balance || balance === '0') {
       return res.json({
         valid: true,
         message: '地址格式正确，但链上无记录（可能是新地址）',
-        warning: '新地址首次收款需要少量 TRX 作为手续费',
-        onChain: { exists: false, balance: 0, txCount: 0 },
+        onChain: { exists: false, balance: 0 },
       });
-    }
-
-    const trxBalance = account.balance || 0;
-    const txCount = account.total_transaction_count || 0;
-    const trc20Tokens = Object.keys(account.assetV2 || {}).length;
-
-    let warning = null;
-    if (trxBalance < 1000000) { // < 1 TRX (in sun)
-      warning = '该地址 TRX 余额较低，首次收款可能需要少量 TRX 作为手续费';
     }
 
     return res.json({
       valid: true,
-      message: '地址验证通过',
-      warning,
-      onChain: {
-        exists: true,
-        trxBalance: (trxBalance / 1e6).toFixed(2),
-        txCount,
-        trc20Tokens,
-      },
+      message: '地址格式正确，链上已有记录',
+      onChain: { exists: true, balance: (parseInt(balance) / 1e18).toFixed(4) + ' ETH' },
     });
   } catch (err) {
     // API error - still pass format check

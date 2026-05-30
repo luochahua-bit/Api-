@@ -90,8 +90,7 @@ app.get('/health', (req, res) => {
   const degraded = providers.some(p => (p.health?.consecutiveFailures || 0) >= 10);
   const healthy = providers.filter(p => p.health?.healthy).length;
   const total = providers.length;
-  const userCount = store.getUsers ? store.getUsers().length : 0;
-  res.json({ status: degraded ? 'degraded' : 'ok', providers: { healthy, total }, users: userCount });
+  res.json({ status: degraded ? 'degraded' : 'ok', providers: { healthy, total } });
 });
 
 // Stats (public — logs already mask API keys)
@@ -127,7 +126,7 @@ app.use('/v1', auth, rateLimit, v1Routes);
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { ADMIN_JWT_SECRET } = require('./middleware/adminAuth');
-const ADMIN_PANEL_PASSWORD = '20060303';
+const ADMIN_PANEL_PASSWORD = config.adminPassword; // Use env var, not hardcoded
 const ADMIN_USERS = (process.env.ADMIN_USERS || 'luo').split(',');
 const adminLoginAttempts = {};
 setInterval(() => {

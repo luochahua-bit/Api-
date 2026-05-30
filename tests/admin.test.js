@@ -9,7 +9,7 @@ const testUserToken = jwt.sign({ userId: 'usr_29bfa96bd9296e1f714d' }, process.e
 beforeAll(async () => {
   const res = await request(app)
     .post('/api/admin/login')
-    .send({ password: '20060303', userToken: testUserToken });
+    .send({ password: 'test-admin-password-123', userToken: testUserToken });
   adminToken = res.body.token;
 });
 
