@@ -1322,15 +1322,7 @@ async function confirmWithdraw(){
   }catch(e){toast(e.message,'error');}
 }
 
-// Init
-var savedTheme=localStorage.getItem('theme')||'dark';
-document.documentElement.setAttribute('data-theme',savedTheme);
-document.getElementById('themeBtn').textContent=savedTheme==='dark'?'🌙':'☀️';
-applyCardSize();
-checkAuth();
-showPage('home');
-// Hide loading screen
-var ld=document.getElementById('app-loading');if(ld){ld.style.opacity='0';setTimeout(function(){ld.remove()},400)}
+// Init moved to /js/init.js (loads after external scripts)
 </script>
 <script>
 if ('serviceWorker' in navigator) {
@@ -1340,5 +1332,6 @@ if ('serviceWorker' in navigator) {
 <script src="/js/utils.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/components.js"></script>
+<script src="/js/init.js"></script>
 </body>
 </html>
