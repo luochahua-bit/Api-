@@ -1281,6 +1281,7 @@ async function confirmRecharge(){
     showModal('payModal');
     document.getElementById('rechargeAmount').value='';
     document.querySelectorAll('.recharge-btn').forEach(function(b){b.style.background='';b.style.borderColor='';});
+    loadWallet(); // Refresh wallet to show pending order
   }catch(e){toast(e.message,'error');}
 }
 
