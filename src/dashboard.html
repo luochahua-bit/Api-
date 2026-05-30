@@ -1078,7 +1078,7 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
           return '<div style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-secondary)">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
             '<div><strong style="font-size:13px">' + d.usdtAmount + ' USDC → ' + d.coins + ' 币</strong> <span style="color:' + sc + ';font-size:12px">(' + sl + ')</span></div>' +
-            (d.status === 'pending' ? '<button class="btn btn-sm btn-danger" onclick="cancelDeposit(\'' + d.id + '\')">取消</button>' : '') +
+            (d.status === 'pending' ? '<button class="btn btn-sm btn-primary" onclick="confirmDeposit(\'' + d.id + '\')">确认到账</button> <button class="btn btn-sm btn-danger" onclick="cancelDeposit(\'' + d.id + '\')">取消</button>' : '') +
             '</div>' +
             '<div style="font-size:11px;color:var(--text3)">ID: ' + d.id + ' | 用户: ' + d.userId + '</div>' +
             '<div style="font-size:11px;color:var(--text3)">发件人: ' + _esc(d.fromAddress || '未提供') + '</div>' +
@@ -1093,6 +1093,21 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
       try {
         const resp = await fetch(API_BASE + '/api/admin/deposits/' + id + '/cancel', {
           method: 'PUT', headers: { 'Authorization': 'Bearer ' + adminToken },
+        });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error.message, 'error'); return; }
+        showToast(data.message, 'success');
+        loadDeposits();
+      } catch (e) { showToast('操作失败: ' + e.message, 'error'); }
+    }
+
+    async function confirmDeposit(id) {
+      if (!confirm('确认此充值订单已到账？金币将充入用户账户。')) return;
+      try {
+        const resp = await fetch(API_BASE + '/api/admin/deposits/' + id + '/confirm', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+          body: JSON.stringify({ note: '管理员手动确认到账' }),
         });
         const data = await resp.json();
         if (data.error) { showToast(data.error.message, 'error'); return; }

@@ -196,6 +196,17 @@ router.put('/deposits/:id/cancel', (req, res) => {
   res.json({ success: true, message: '订单已取消' });
 });
 
+// Manually confirm a pending deposit order (admin)
+router.put('/deposits/:id/confirm', (req, res) => {
+  const order = store.getDepositOrder ? store.getDepositOrder(req.params.id) : null;
+  if (!order) return res.status(404).json({ error: { message: '订单不存在' } });
+  if (order.status !== 'pending') return res.status(400).json({ error: { message: '只能确认待处理的订单' } });
+  store.updateDepositOrder(order.id, { status: 'completed', confirmedAt: Date.now(), note: req.body.note || '管理员手动确认' });
+  store.addCoins(order.userId, order.coins, `USDC 充值 ${order.usdtAmount} USDC → ${order.coins} 币 (管理员手动确认)`);
+  store.addProcessedTx('manual_' + order.id);
+  res.json({ success: true, message: `已确认到账，${order.coins} 金币已充入用户账户` });
+});
+
 // Trace user's complete fund flow
 router.get('/trace/user/:userId', (req, res) => {
   const user = store.getUserById(req.params.userId);
