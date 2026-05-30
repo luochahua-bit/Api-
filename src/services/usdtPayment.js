@@ -203,18 +203,29 @@ async function verifyTransaction(txHash, expectedAmount, tolerance = 0.01) {
     const resp = await axios.get(ARBISCAN_API, { params, timeout: 15000, validateStatus: () => true });
 
     if (!resp.data || !resp.data.result) {
-      console.error('[USDC] verifyTransaction: no result from API', JSON.stringify(resp.data).slice(0, 200));
+      console.error('[USDC] verifyTransaction: no result from API', JSON.stringify(resp.data).slice(0, 500));
       return { verified: false, error: '交易查询失败，请确认交易哈希正确' };
     }
 
     const receipt = resp.data.result;
+    console.log('[USDC] verifyTransaction receipt keys:', Object.keys(receipt).join(', '));
+    console.log('[USDC] verifyTransaction receipt.status:', receipt.status, 'type:', typeof receipt.status);
 
     // Check if transaction was successful (handle different status formats)
     const status = String(receipt.status || receipt.txStatus || '').toLowerCase();
     console.log(`[USDC] verifyTransaction: raw status=${JSON.stringify(receipt.status)}, txStatus=${JSON.stringify(receipt.txStatus)}, logs=${receipt.logs?.length || 0}`);
-    if (status !== '0x1' && status !== '1' && status !== 'true' && status !== 'success') {
-      console.error('[USDC] Transaction failed, status:', receipt.status, 'txStatus:', receipt.txStatus);
+    const isSuccess = status === '0x1' || status === '1' || status === 'true' || status === 'success';
+    // Fallback: if status is null/undefined but logs contain USDC transfer, treat as success
+    const hasUsdcLogs = receipt.logs?.some(log =>
+      log.address?.toLowerCase() === USDC_CONTRACT.toLowerCase() &&
+      log.topics?.[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+    );
+    if (!isSuccess && !hasUsdcLogs) {
+      console.error('[USDC] Transaction failed, status:', receipt.status, 'txStatus:', receipt.txStatus, 'hasUsdcLogs:', hasUsdcLogs);
       return { verified: false, error: '此交易失败 (status: ' + (receipt.status || 'null') + ')' };
+    }
+    if (!isSuccess && hasUsdcLogs) {
+      console.log('[USDC] Status is null but USDC transfer found in logs, treating as success');
     }
 
     // Find USDC Transfer event in logs
