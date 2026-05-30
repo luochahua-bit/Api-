@@ -301,7 +301,13 @@ router.put('/withdrawals/:id/reject', (req, res) => {
   if (!withdrawal) return res.status(404).json({ error: { message: '提现记录不存在' } });
   if (withdrawal.status !== 'pending') return res.status(400).json({ error: { message: '只能拒绝待审核的提现' } });
   // Refund coins to user
-  store.addCoins(withdrawal.userId, withdrawal.coins, `提现被拒绝，退还 ${withdrawal.coins} 币`);
+  const user = store.getUserById(withdrawal.userId);
+  console.log(`[Admin] Rejecting withdrawal ${withdrawal.id}: userId=${withdrawal.userId}, coins=${withdrawal.coins}, userExists=${!!user}, userCoins=${user?.coins}`);
+  const refunded = store.addCoins(withdrawal.userId, withdrawal.coins, `提现被拒绝，退还 ${withdrawal.coins} 币`);
+  if (!refunded) {
+    console.error(`[Admin] Refund failed for withdrawal ${withdrawal.id}, user ${withdrawal.userId}`);
+    return res.status(500).json({ error: { message: '退款失败，请稍后重试' } });
+  }
   store.updateWithdrawal(withdrawal.id, {
     status: 'rejected',
     processedAt: Date.now(),
