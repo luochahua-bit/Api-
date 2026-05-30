@@ -230,7 +230,11 @@ textarea { min-height: 60px; resize: vertical; }
   background: linear-gradient(135deg, rgba(99,102,241,.08), rgba(168,85,247,.06));
   border-radius: 16px; margin-bottom: 24px; border: 1px solid var(--border);
 }
-.hero h1 { font-size: 28px; margin-bottom: 12px; }
+.hero h1 {
+  font-size: 28px; font-weight: 800; margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--primary), #a855f7);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
 .hero p { color: var(--text2); font-size: 15px; margin-bottom: 20px; max-width: 600px; margin-left: auto; margin-right: auto; }
 .hero-buttons { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
 .hero-stats { display: flex; gap: 32px; justify-content: center; margin-top: 20px; }
