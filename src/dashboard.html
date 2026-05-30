@@ -1017,7 +1017,11 @@ PROVIDERS=openrouter|https://openrouter.ai/api/v1|your-key|5|true</code></pre>
     }
 
     async function processWithdrawal(id, action) {
-      if (!confirm(action === 'approve' ? '确认批准此提现？请先在钱包完成转账。' : '确认拒绝此提现？金币将退回用户。')) return;
+      if (action === 'reject') {
+        if (!confirm('确认拒绝此提现？金币将退回用户。')) return;
+      } else {
+        if (!confirm('确认批准此提现？请先在钱包完成转账。')) return;
+      }
       try {
         const resp = await fetch(API_BASE + '/api/admin/withdrawals/' + id + '/' + action, {
           method: 'PUT',
