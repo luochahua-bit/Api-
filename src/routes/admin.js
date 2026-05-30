@@ -300,20 +300,22 @@ router.put('/withdrawals/:id/reject', (req, res) => {
   const withdrawal = store.getWithdrawalById ? store.getWithdrawalById(req.params.id) : null;
   if (!withdrawal) return res.status(404).json({ error: { message: '提现记录不存在' } });
   if (withdrawal.status !== 'pending') return res.status(400).json({ error: { message: '只能拒绝待审核的提现' } });
-  // Refund coins to user
+  // Refund coins to user (bypass lock - refunds must never fail silently)
   const user = store.getUserById(withdrawal.userId);
   console.log(`[Admin] Rejecting withdrawal ${withdrawal.id}: userId=${withdrawal.userId}, coins=${withdrawal.coins}, userExists=${!!user}, userCoins=${user?.coins}`);
-  const refunded = store.addCoins(withdrawal.userId, withdrawal.coins, `提现被拒绝，退还 ${withdrawal.coins} 币`);
-  if (!refunded) {
-    console.error(`[Admin] Refund failed for withdrawal ${withdrawal.id}, user ${withdrawal.userId}`);
-    return res.status(500).json({ error: { message: '退款失败，请稍后重试' } });
+  if (!user) {
+    console.error(`[Admin] User ${withdrawal.userId} not found for refund`);
+    return res.status(400).json({ error: { message: '用户不存在，无法退款' } });
   }
+  // Direct coin addition without lock (critical operation)
+  user.coins = (user.coins || 0) + withdrawal.coins;
+  store.addCoinTransaction(withdrawal.userId, 'refund', withdrawal.coins, `提现被拒绝，退还 ${withdrawal.coins} 币`);
   store.updateWithdrawal(withdrawal.id, {
     status: 'rejected',
     processedAt: Date.now(),
-    note: reason || '已拒绝',
+    note: req.body.reason || '已拒绝',
   });
-  res.json({ success: true, message: '提现已拒绝，金币已退还' });
+  res.json({ success: true, message: `提现已拒绝，${withdrawal.coins} 金币已退还` });
 });
 
 module.exports = router;
